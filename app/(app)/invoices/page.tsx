@@ -1,0 +1,43 @@
+import { createServerClient } from "@/lib/supabase/server";
+import { InvoicesClient } from "@/components/InvoicesClient";
+
+export default async function InvoicesPage() {
+  const supabase = await createServerClient();
+
+  const [{ data: invoices }, { data: customers }, { data: payTypes }, { data: org }] = await Promise.all([
+    supabase
+      .from("fact_invoices")
+      .select("id, invoice_number, amount, status, transaction_date, due_date, customer_id, description, payment_type_id, dim_payment_types(name)")
+      .is("deleted_at", null)
+      .order("transaction_date", { ascending: false }),
+    supabase.from("dim_customers").select("id, name").is("deleted_at", null).order("name"),
+    supabase.from("dim_payment_types").select("id, name").order("name"),
+    supabase.from("organizations").select("currency").single(),
+  ]);
+
+  const mappedInvoices = (invoices || []).map(inv => ({
+    id: inv.id,
+    invoice_number: inv.invoice_number ?? null,
+    amount: Number(inv.amount || 0),
+    status: inv.status || "Pending",
+    transaction_date: inv.transaction_date ?? null,
+    due_date: (inv as Record<string, unknown>).due_date as string | null ?? null,
+    customer_id: inv.customer_id,
+    description: (inv as Record<string, unknown>).description as string | null ?? null,
+    payment_type_name: (inv.dim_payment_types as unknown as { name: string } | null)?.name ?? null,
+  }));
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-semibold">Invoices</h1>
+      </div>
+      <InvoicesClient
+        invoices={mappedInvoices}
+        customers={customers || []}
+        paymentTypes={payTypes || []}
+        currency={org?.currency || "ZAR"}
+      />
+    </section>
+  );
+}

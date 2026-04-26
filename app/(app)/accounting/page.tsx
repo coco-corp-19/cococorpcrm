@@ -1,0 +1,66 @@
+import { createServerClient } from "@/lib/supabase/server";
+import { AccountingClient } from "@/components/AccountingClient";
+
+export default async function AccountingPage() {
+  const supabase = await createServerClient();
+
+  const now = new Date();
+  const fyStart = `${now.getFullYear()}-01-01`;
+  const fyEnd = now.toISOString().slice(0, 10);
+
+  const [{ data: invoices }, { data: costs }, { data: cashflow }, { data: org }] = await Promise.all([
+    supabase
+      .from("fact_invoices")
+      .select("id, amount, status, transaction_date, customer_id")
+      .is("deleted_at", null),
+    supabase
+      .from("fact_costs")
+      .select("id, amount, transaction_date, cost_category_id, dim_cost_categories(name)")
+      .is("deleted_at", null),
+    supabase
+      .from("fact_cashflow")
+      .select("balance, account_id, record_date")
+      .order("record_date", { ascending: false }),
+    supabase.from("organizations").select("currency, name, reg_no").single(),
+  ]);
+
+  const currency = org?.currency || "ZAR";
+  const cur = currency === "ZAR" ? "R" : currency === "USD" ? "$" : currency === "EUR" ? "€" : "R";
+
+  const allInvoices = (invoices || []).map(i => ({
+    id: i.id,
+    amount: Number(i.amount || 0),
+    status: i.status || "",
+    transaction_date: i.transaction_date || "",
+    customer_id: i.customer_id,
+  }));
+
+  const allCosts = (costs || []).map(c => ({
+    id: c.id,
+    amount: Number(c.amount || 0),
+    transaction_date: c.transaction_date || "",
+    cost_category_id: c.cost_category_id,
+    category_name: (c.dim_cost_categories as unknown as { name: string } | null)?.name ?? "Other",
+  }));
+
+  const allCashflow = (cashflow || []).map(r => ({
+    balance: Number(r.balance || 0),
+    account_id: r.account_id,
+    record_date: r.record_date || "",
+  }));
+
+  return (
+    <section>
+      <AccountingClient
+        invoices={allInvoices}
+        costs={allCosts}
+        cashflow={allCashflow}
+        orgName={org?.name || "Company"}
+        orgRegNo={org?.reg_no || ""}
+        currency={cur}
+        defaultStart={fyStart}
+        defaultEnd={fyEnd}
+      />
+    </section>
+  );
+}

@@ -1,0 +1,56 @@
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { createServerClient } from "@/lib/supabase/server";
+import { LeadDetailClient } from "@/components/LeadDetailClient";
+
+export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const leadId = Number(id);
+  const supabase = await createServerClient();
+
+  const [{ data: lead }, { data: statuses }, { data: org }] = await Promise.all([
+    supabase.from("fact_leads").select("*").eq("id", leadId).single(),
+    supabase.from("dim_statuses").select("id, name").order("id"),
+    supabase.from("organizations").select("currency").single(),
+  ]);
+
+  if (!lead) notFound();
+
+  let activities: { id: number; type: string; subject: string; notes: string | null; due_date: string | null; done: boolean; created_at: string }[] = [];
+  try {
+    const { data: a } = await supabase.from("fact_activities")
+      .select("id, type, subject, notes, due_date, done, created_at")
+      .eq("lead_id", leadId).order("created_at", { ascending: false }).limit(20);
+    activities = a || [];
+  } catch { /* table may not exist yet */ }
+
+  const currency = org?.currency || "ZAR";
+  const cur = currency === "ZAR" ? "R" : "$";
+  const status = (statuses || []).find(s => s.id === lead.status_id);
+
+  return (
+    <section className="space-y-6 max-w-4xl">
+      <div className="flex items-center gap-2 text-xs" style={{ color: "var(--muted2)" }}>
+        <Link href="/leads" style={{ color: "var(--accent)" }}>Leads</Link>
+        <span>/</span>
+        <span>{lead.name}</span>
+      </div>
+
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">{lead.name}</h1>
+          {status && (
+            <span className="text-xs px-2 py-0.5 rounded-full mt-1 inline-block font-semibold"
+              style={{ background: "rgba(16,185,129,.12)", color: "var(--accent)" }}>
+              {status.name}
+            </span>
+          )}
+        </div>
+        <Link href="/leads" className="text-sm px-3 py-1.5 rounded border"
+          style={{ borderColor: "var(--border)", color: "var(--muted)" }}>← Back</Link>
+      </div>
+
+      <LeadDetailClient lead={lead} activities={activities} currency={cur} leadId={leadId} />
+    </section>
+  );
+}

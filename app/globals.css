@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0c0a1d;
+  --foreground: #f0f0fc;
+  --card: #110f28;
+  --card2: #171535;
+  --card3: #1e1b45;
+  --muted: #c4c0e0;
+  --muted2: #8a84b0;
+  --border: #2d2860;
+  --border2: #3d3878;
+  --accent: #10b981;
+  --pink: #e84393;
+  --red-c: #ef4444;
+  --amber-c: #f59e0b;
+  --purple-c: #8b5cf6;
+  --cyan-c: #06b6d4;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+select option { background: var(--card); color: var(--foreground); }
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
