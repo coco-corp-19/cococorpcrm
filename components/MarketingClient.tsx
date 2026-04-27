@@ -160,7 +160,7 @@ export function MarketingClient({ campaigns, updates, currency }: Props) {
       {/* Dashboard Tab */}
       {tab === "dashboard" && (
         <div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
             <Kpi label="Total Ad Spend" value={`${cur} ${fmt(allAgg.spend)}`} color="var(--red-c)" sub={`${campaigns.length} campaigns`} />
             <Kpi label="Active Campaigns" value={String(allAgg.activeCamps)} color="var(--accent)" sub={`of ${campaigns.length} total`} />
             <Kpi label="Impressions" value={fmt(allAgg.impressions)} color="var(--purple-c)" />
@@ -247,7 +247,7 @@ export function MarketingClient({ campaigns, updates, currency }: Props) {
                   </div>
                 </div>
                 {ag.entries > 0 && (
-                  <div className="grid grid-cols-4 md:grid-cols-6 gap-2 mt-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 mt-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
                     {[["Spend", `${cur} ${fmt(ag.spend)}`, "var(--red-c)"], ["Clicks", fmt(ag.clicks), "var(--cyan-c)"], ["Conv.", fmt(ag.conversions), "var(--accent)"], ["ROAS", `${fmt2(ag.roas)}x`, "var(--purple-c)"]].map(([l, v, c]) => (
                       <div key={l}>
                         <div className="text-xs" style={{ color: "var(--muted2)" }}>{l}</div>
@@ -322,7 +322,7 @@ export function MarketingClient({ campaigns, updates, currency }: Props) {
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Campaign Name *</label>
                 <input name="name" required className={inputCss} style={inputStyle} placeholder="e.g. March Meta Ads" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Platform</label>
                   <select name="platform" className={inputCss} style={inputStyle}>
@@ -383,7 +383,7 @@ export function MarketingClient({ campaigns, updates, currency }: Props) {
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Date *</label>
                 <input name="date" type="date" required defaultValue={today} className={inputCss} style={inputStyle} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[["spend", "Ad Spend", "0.00", true], ["impressions", "Impressions", "0", false], ["clicks", "Clicks", "0", false], ["conversions", "Conversions", "0", false], ["revenue", "Revenue from Ads", "0.00", false]].map(([name, label, placeholder, decimal]) => (
                   <div key={name as string}>
                     <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>{label}</label>

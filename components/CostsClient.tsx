@@ -233,7 +233,7 @@ export function CostsClient({ costs, categories, accounts, currency }: Props) {
                 catch { toast.error("Failed to update cost"); }
                 finally { setBusy(false); }
               }}>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Date *</label>
                   <input name="transaction_date" type="date" required defaultValue={editCost.transaction_date} className={inputStyle} style={inputCss} />
@@ -247,7 +247,7 @@ export function CostsClient({ costs, categories, accounts, currency }: Props) {
                 <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Details</label>
                 <input name="cost_details" defaultValue={editCost.cost_details || ""} className={inputStyle} style={inputCss} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Category</label>
                   <select name="cost_category_id" defaultValue={editCost.cost_category_id ?? ""} className={inputStyle} style={inputCss}>
@@ -292,7 +292,7 @@ export function CostsClient({ costs, categories, accounts, currency }: Props) {
             </div>
             <form className="p-5 space-y-3"
               action={async (fd: FormData) => { setBusy(true); await createCost(fd); setModal(false); setBusy(false); }}>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Date *</label>
                   <input name="transaction_date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} className={inputStyle} style={inputCss} />
@@ -306,7 +306,7 @@ export function CostsClient({ costs, categories, accounts, currency }: Props) {
                 <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Details</label>
                 <input name="cost_details" className={inputStyle} style={inputCss} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Category</label>
                   <select name="cost_category_id" className={inputStyle} style={inputCss}>

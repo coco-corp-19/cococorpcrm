@@ -147,7 +147,7 @@ export function BillingClient({ invoices, customers, currency }: Props) {
       </div>
 
       {/* Summary KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
         {[
           ["Total Billed", grand.completed + grand.pending + grand.writtenOff, "var(--purple-c)"],
           ["Collected", grand.completed, "var(--accent)"],

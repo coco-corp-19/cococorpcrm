@@ -111,7 +111,7 @@ export function FAB({ accounts, customers, paymentTypes, statuses, costCategorie
             <label style={labelCss}>Lead Name *</label>
             <input name="name" required className={inputCss} style={inputStyle} placeholder="Contact or company name" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label style={labelCss}>Phone</label>
               <input name="phone" className={inputCss} style={inputStyle} placeholder="+27 xx xxx xxxx" />
@@ -121,7 +121,7 @@ export function FAB({ accounts, customers, paymentTypes, statuses, costCategorie
               <input name="contact" className={inputCss} style={inputStyle} placeholder="Contact name" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label style={labelCss}>Status</label>
               <select name="status_id" defaultValue="1" className={inputCss} style={inputStyle}>
@@ -154,7 +154,7 @@ export function FAB({ accounts, customers, paymentTypes, statuses, costCategorie
               {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label style={labelCss}>Invoice # *</label>
               <input name="invoice_number" required className={inputCss} style={inputStyle} placeholder="INV-001" />
@@ -192,7 +192,7 @@ export function FAB({ accounts, customers, paymentTypes, statuses, costCategorie
       {/* Cost Modal */}
       {modal === "cost" && (
         <Modal title="💸 New Cost" onSubmit={e => handleSubmit(e, createCost)}>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label style={labelCss}>Date *</label>
               <input name="transaction_date" type="date" required defaultValue={today} className={inputCss} style={inputStyle} />
@@ -206,7 +206,7 @@ export function FAB({ accounts, customers, paymentTypes, statuses, costCategorie
             <label style={labelCss}>Description</label>
             <input name="cost_details" className={inputCss} style={inputStyle} placeholder="What was this cost for?" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label style={labelCss}>Category</label>
               <select name="cost_category_id" className={inputCss} style={inputStyle}>
@@ -228,7 +228,7 @@ export function FAB({ accounts, customers, paymentTypes, statuses, costCategorie
       {/* Cashflow Modal */}
       {modal === "cashflow" && (
         <Modal title="🏦 Record Bank Balance" onSubmit={e => handleSubmit(e, recordCashflow)}>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label style={labelCss}>Date *</label>
               <input name="record_date" type="date" required defaultValue={today} className={inputCss} style={inputStyle} />

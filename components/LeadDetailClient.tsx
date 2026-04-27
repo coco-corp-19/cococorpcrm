@@ -42,7 +42,7 @@ export function LeadDetailClient({ lead, activities, currency, leadId }: {
       {/* Lead Info Card */}
       <div className="rounded-lg p-5" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
         <h2 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: "var(--muted2)" }}>Lead Details</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-4">
           {[["Lead Date", fdate(lead.lead_date)], ["Follow-up", fdate(lead.last_follow_up)], ["Phone", lead.phone || "—"], ["Contact", lead.contact || "—"]].map(([l, v]) => (
             <div key={l}>
               <div className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "var(--muted2)" }}>{l}</div>
@@ -52,7 +52,7 @@ export function LeadDetailClient({ lead, activities, currency, leadId }: {
         </div>
 
         {/* Pipeline values */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           {[["Opportunity Value", lead.opportunity_value ?? 0, "var(--purple-c)"], ["Weight", `${lead.weight ?? 0}%`, "var(--muted)"], ["Weighted Pipeline", weightedValue, "var(--accent)"]].map(([l, v, c]) => (
             <div key={l as string} className="rounded p-3 text-center" style={{ background: "var(--card3)", border: "1px solid var(--border)" }}>
               <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>{l}</div>
@@ -125,7 +125,7 @@ export function LeadDetailClient({ lead, activities, currency, leadId }: {
                 catch { toast.error("Failed to log activity"); }
                 finally { setBusy(false); }
               }}>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Type *</label>
                   <select name="type" className={inp} style={inpS}>

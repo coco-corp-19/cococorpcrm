@@ -41,7 +41,7 @@ export function CustomerDetailClient({ customer, invoices, contacts, activities,
   return (
     <div>
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b" style={{ borderColor: "var(--border)" }}>
+      <div className="flex gap-1 mb-4 border-b overflow-x-auto" style={{ borderColor: "var(--border)" }}>
         {TABS.map(t => (
           <button key={t} onClick={() => setTab(t)}
             className="px-4 py-2 text-sm font-semibold transition-colors"
@@ -58,7 +58,7 @@ export function CustomerDetailClient({ customer, invoices, contacts, activities,
         <div className="rounded-lg p-5 space-y-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
           {!editInfo ? (
             <>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 {[["Email", customer.email], ["Phone", customer.phone], ["Contact Person", customer.contact_person], ["Source", customer.source]].map(([l, v]) => (
                   <div key={l as string}>
                     <div className="text-xs font-semibold uppercase tracking-wider mb-0.5" style={{ color: "var(--muted2)" }}>{l}</div>
@@ -84,7 +84,7 @@ export function CustomerDetailClient({ customer, invoices, contacts, activities,
                 catch { toast.error("Failed to update"); }
                 finally { setBusy(false); }
               }}>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Name *</label>
                   <input name="name" required defaultValue={customer.name} className={inp} style={inpS} />
@@ -132,7 +132,7 @@ export function CustomerDetailClient({ customer, invoices, contacts, activities,
             <Link href="/invoices" className="text-xs px-3 py-1.5 rounded" style={{ background: "var(--accent)", color: "#fff" }}>+ New Invoice</Link>
           </div>
           <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-            <table className="w-full text-xs border-collapse" style={{ background: "var(--card2)" }}>
+            <div className="overflow-x-auto"><table className="w-full text-xs border-collapse" style={{ background: "var(--card2)" }}>
               <thead>
                 <tr style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
                   {["Date", "Invoice #", "Amount", "Due", "Status"].map(h => (
@@ -157,7 +157,7 @@ export function CustomerDetailClient({ customer, invoices, contacts, activities,
                 })}
                 {invoices.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center" style={{ color: "var(--muted2)" }}>No invoices yet</td></tr>}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
       )}
@@ -251,7 +251,7 @@ export function CustomerDetailClient({ customer, invoices, contacts, activities,
                 } catch { toast.error("Something went wrong"); }
                 finally { setBusy(false); }
               }}>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Name *</label>
                   <input name="name" required defaultValue={contactModal.contact?.name || ""} className={inp} style={inpS} />
@@ -304,7 +304,7 @@ export function CustomerDetailClient({ customer, invoices, contacts, activities,
                 catch { toast.error("Failed to log activity"); }
                 finally { setBusy(false); }
               }}>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Type *</label>
                   <select name="type" className={inp} style={inpS}>

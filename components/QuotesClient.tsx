@@ -101,7 +101,7 @@ export function QuotesClient({ quotes, customers, products, currency }: {
   return (
     <div>
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         {[["Total Quoted", totals.total, "var(--purple-c)"], ["Accepted", totals.accepted, "var(--accent)"], ["In Progress", totals.pending, "var(--amber-c)"]].map(([l, v, c]) => (
           <div key={l as string} className="rounded-lg p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
             <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>{l}</div>
@@ -201,7 +201,7 @@ export function QuotesClient({ quotes, customers, products, currency }: {
             </div>
             <form onSubmit={handleCreate}>
               <div className="p-5 space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Customer *</label>
                     <select name="customer_id" required className={inp} style={inpS}>
@@ -237,9 +237,9 @@ export function QuotesClient({ quotes, customers, products, currency }: {
                       className="text-xs px-2 py-1 rounded"
                       style={{ background: "var(--card3)", color: "var(--accent)", border: "1px solid var(--border)" }}>+ Add Row</button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 overflow-x-auto">
                     {lines.map((line, i) => (
-                      <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: products.length ? "1fr 1fr 70px 80px 28px" : "1fr 70px 80px 28px" }}>
+                      <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: products.length ? "1fr 1fr 65px 70px 26px" : "1fr 65px 70px 26px", minWidth: 280 }}>
                         {products.length > 0 && (
                           <select onChange={e => pickProduct(i, e.target.value)}
                             className={inp + " text-xs"} style={inpS}>

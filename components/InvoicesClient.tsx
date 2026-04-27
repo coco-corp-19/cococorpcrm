@@ -106,7 +106,7 @@ export function InvoicesClient({ invoices, customers, paymentTypes, currency }: 
   return (
     <div>
       {/* KPI Row */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         {[["Collected", totals.completed, "var(--accent)"], ["Pending", totals.pending, "var(--amber-c)"], ["Written Off", totals.writtenOff, "var(--red-c)"]].map(([l, v, c]) => (
           <div key={l as string} className="rounded-lg p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
             <div className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>{l}</div>
@@ -246,9 +246,9 @@ export function InvoicesClient({ invoices, customers, paymentTypes, currency }: 
                     <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted2)" }}>Line Items</label>
                     <button type="button" onClick={addLine} className="text-xs px-2 py-1 rounded" style={{ background: "var(--card3)", color: "var(--accent)", border: "1px solid var(--border)" }}>+ Add Row</button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 overflow-x-auto">
                     {lines.map((line, i) => (
-                      <div key={i} className="grid grid-cols-[1fr_80px_80px_28px] gap-2 items-center">
+                      <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: "1fr 65px 75px 26px", minWidth: 280 }}>
                         <input value={line.description} onChange={e => setLine(i, "description", e.target.value)} placeholder="Description" className={inputCss + " text-xs"} style={inputStyle} />
                         <input type="number" value={line.quantity} min={1} onChange={e => setLine(i, "quantity", Number(e.target.value))} placeholder="Qty" className={inputCss + " text-xs"} style={inputStyle} />
                         <input type="number" value={line.unit_price} min={0} step={0.01} onChange={e => setLine(i, "unit_price", Number(e.target.value))} placeholder="Price" className={inputCss + " text-xs"} style={inputStyle} />
@@ -331,9 +331,9 @@ export function InvoicesClient({ invoices, customers, paymentTypes, currency }: 
                       className="text-xs px-2 py-1 rounded"
                       style={{ background: "var(--card3)", color: "var(--accent)", border: "1px solid var(--border)" }}>+ Add Row</button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 overflow-x-auto">
                     {lines.map((line, i) => (
-                      <div key={i} className="grid grid-cols-[1fr_80px_80px_28px] gap-2 items-center">
+                      <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: "1fr 65px 75px 26px", minWidth: 280 }}>
                         <input value={line.description} onChange={e => setLine(i, "description", e.target.value)}
                           placeholder="Description" className={inputCss + " text-xs"} style={inputStyle} />
                         <input type="number" value={line.quantity} min={1} onChange={e => setLine(i, "quantity", Number(e.target.value))}

@@ -65,7 +65,7 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customers…"
-          className="px-3 py-2 text-sm rounded border outline-none flex-1 min-w-[180px]"
+          className="px-3 py-2 text-sm rounded border outline-none flex-1 min-w-0"
           style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--foreground)" }} />
         <span className="text-xs" style={{ color: "var(--muted2)" }}>{filtered.length}/{customers.length}</span>
         <button onClick={() => open(null)}
@@ -155,7 +155,7 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
                   toast.error("Something went wrong");
                 } finally { setBusy(false); }
               }}>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Name *</label>
                   <input name="name" required defaultValue={modal.customer?.name || ""} className={inp} style={inpS} />

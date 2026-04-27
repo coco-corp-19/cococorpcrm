@@ -87,7 +87,7 @@ export function LeadsClient({ leads, statuses, customers, currency }: Props) {
         </div>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
           className="px-3 py-2 text-xs rounded border outline-none"
-          style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--foreground)", minWidth: 180 }} />
+          style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--foreground)" }} />
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="px-3 py-2 text-xs rounded border outline-none"
           style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }}>
@@ -202,7 +202,7 @@ export function LeadsClient({ leads, statuses, customers, currency }: Props) {
                   closeModal();
                 } finally { setBusy(false); }
               }}>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Name *</label>
                   <input name="name" required defaultValue={modal.lead?.name || ""} className={inputStyle} style={inputCss} />
@@ -212,7 +212,7 @@ export function LeadsClient({ leads, statuses, customers, currency }: Props) {
                   <input name="lead_date" type="date" defaultValue={modal.lead?.lead_date?.slice(0, 10) || new Date().toISOString().slice(0, 10)} className={inputStyle} style={inputCss} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Phone</label>
                   <input name="phone" defaultValue={modal.lead?.phone || ""} className={inputStyle} style={inputCss} />
@@ -222,7 +222,7 @@ export function LeadsClient({ leads, statuses, customers, currency }: Props) {
                   <input name="contact" defaultValue={modal.lead?.contact || ""} className={inputStyle} style={inputCss} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Status</label>
                   <select name="status_id" defaultValue={modal.lead?.status_id ?? ""} className={inputStyle} style={inputCss}>
@@ -235,7 +235,7 @@ export function LeadsClient({ leads, statuses, customers, currency }: Props) {
                   <input name="last_follow_up" type="date" defaultValue={modal.lead?.last_follow_up?.slice(0, 10) || ""} className={inputStyle} style={inputCss} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Opportunity Value</label>
                   <input name="opportunity_value" type="number" step="0.01" defaultValue={modal.lead?.opportunity_value || ""} className={inputStyle} style={inputCss} />
@@ -245,7 +245,7 @@ export function LeadsClient({ leads, statuses, customers, currency }: Props) {
                   <input name="weight" type="number" min="0" max="100" step="1" defaultValue={modal.lead?.weight || ""} className={inputStyle} style={inputCss} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Total Revenue</label>
                   <input name="total_revenue" type="number" step="0.01" defaultValue={modal.lead?.total_revenue || ""} className={inputStyle} style={inputCss} />
@@ -255,7 +255,7 @@ export function LeadsClient({ leads, statuses, customers, currency }: Props) {
                   <input name="secured_revenue" type="number" step="0.01" defaultValue={modal.lead?.secured_revenue || ""} className={inputStyle} style={inputCss} />
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {(["contacted", "responded", "developed", "paid"] as const).map(f => (
                   <div key={f} className="flex flex-col items-center gap-1">
                     <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted2)" }}>{f}</label>

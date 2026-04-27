@@ -361,7 +361,7 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
       {tab === "bank" && (
         <div>
           {/* KPIs */}
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
             {[
               ["Total Credits (In)", bankTotals.credits, "var(--accent)"],
               ["Total Debits (Out)", bankTotals.debits, "var(--red-c)"],
@@ -536,7 +536,7 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
           </form>
 
           {/* Summary KPIs */}
-          <div className="grid grid-cols-3 gap-3 mb-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
             {[
               ["Total Money In", bankTotals.credits, "var(--accent)"],
               ["Total Money Out", bankTotals.debits, "var(--red-c)"],
