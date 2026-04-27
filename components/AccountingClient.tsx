@@ -181,6 +181,10 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
   const [reconFilter, setReconFilter] = useState<"" | "reconciled" | "unreconciled">("");
   const [bankAccFilter, setBankAccFilter] = useState("");
 
+  // Cashflow quick-entry state
+  const [cfBusy, setCfBusy] = useState(false);
+  const [cfType, setCfType] = useState<"in" | "out">("in");
+
   // ── IS / BS data ─────────────────────────────────────────────────────────
   const isData = useMemo(() => {
     const inPeriod = (d: string) => d >= start && d <= end;
@@ -462,8 +466,77 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
       {/* ── Cashflow ─────────────────────────────────────────────────────── */}
       {tab === "cashflow" && (
         <div>
+          {/* Quick-entry form */}
+          <form
+            onSubmit={async e => {
+              e.preventDefault();
+              setCfBusy(true);
+              const fd = new FormData(e.currentTarget);
+              const amount = Math.abs(Number(fd.get("amount") || 0));
+              fd.set("credit", cfType === "in" ? String(amount) : "0");
+              fd.set("debit", cfType === "out" ? String(amount) : "0");
+              fd.delete("amount");
+              try {
+                await createBankTransaction(fd);
+                toast.success("Cashflow entry added");
+                (e.target as HTMLFormElement).reset();
+                setCfType("in");
+              } catch { toast.error("Failed to save entry"); }
+              finally { setCfBusy(false); }
+            }}
+            className="rounded-lg p-4 mb-5 flex flex-wrap gap-3 items-end"
+            style={{ background: "var(--card2)", border: "1px solid var(--border)" }}
+          >
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Type</label>
+              <div className="flex rounded overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+                {(["in", "out"] as const).map(t => (
+                  <button key={t} type="button" onClick={() => setCfType(t)}
+                    className="px-4 py-2 text-xs font-semibold transition-colors"
+                    style={{
+                      background: cfType === t ? (t === "in" ? "var(--accent)" : "var(--red-c)") : "var(--background)",
+                      color: cfType === t ? "#fff" : "var(--muted)",
+                    }}>
+                    {t === "in" ? "▲ Money In" : "▼ Money Out"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Date *</label>
+              <input name="txn_date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)}
+                className="px-3 py-2 rounded border text-sm outline-none"
+                style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
+            </div>
+            <div className="flex-1 min-w-[160px]">
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Description *</label>
+              <input name="description" required placeholder="e.g. Client payment, Rent, Salary…"
+                className="w-full px-3 py-2 rounded border text-sm outline-none"
+                style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
+            </div>
+            <div style={{ width: 140 }}>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Amount *</label>
+              <input name="amount" type="number" min={0.01} step={0.01} required placeholder="0.00"
+                className="w-full px-3 py-2 rounded border text-sm outline-none"
+                style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
+            </div>
+            <div style={{ width: 150 }}>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Account</label>
+              <select name="account_id" className="w-full px-3 py-2 rounded border text-sm outline-none"
+                style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--muted)" }}>
+                <option value="">— Optional —</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <button type="submit" disabled={cfBusy}
+              className="px-5 py-2 rounded text-sm font-semibold"
+              style={{ background: cfType === "in" ? "var(--accent)" : "var(--red-c)", color: "#fff", opacity: cfBusy ? .6 : 1, whiteSpace: "nowrap" }}>
+              {cfBusy ? "Saving…" : `+ Add ${cfType === "in" ? "Income" : "Expense"}`}
+            </button>
+          </form>
+
           {/* Summary KPIs */}
-          <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="grid grid-cols-3 gap-3 mb-5">
             {[
               ["Total Money In", bankTotals.credits, "var(--accent)"],
               ["Total Money Out", bankTotals.debits, "var(--red-c)"],
@@ -479,67 +552,86 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
           </div>
 
           {cashflowData.length === 0 ? (
-            <div className="rounded-lg p-12 text-center" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
-              <p className="text-sm" style={{ color: "var(--muted2)" }}>No bank transactions yet. Add entries in the Bank Statement tab to see cashflow.</p>
+            <div className="rounded-lg p-10 text-center" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+              <p className="text-sm" style={{ color: "var(--muted2)" }}>No entries yet — add your first cashflow entry above.</p>
             </div>
           ) : (
-            <div className="rounded-lg p-5" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
-              <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--foreground)" }}>Monthly Cashflow</h3>
-              <div className="flex items-end gap-3 overflow-x-auto pb-2" style={{ minHeight: 180 }}>
-                {cashflowData.map(d => {
-                  const creditH = Math.round((d.credit / maxCashflow) * 140);
-                  const debitH = Math.round((d.debit / maxCashflow) * 140);
-                  const isPositive = d.net >= 0;
-                  return (
-                    <div key={d.month} className="flex flex-col items-center gap-1 flex-shrink-0" style={{ minWidth: 64 }}>
-                      <div className="text-xs font-mono" style={{ color: isPositive ? "var(--accent)" : "var(--red-c)" }}>
-                        {isPositive ? "+" : ""}{fmt(d.net)}
+            <>
+              {/* Bar chart */}
+              <div className="rounded-lg p-5 mb-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+                <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--foreground)" }}>Monthly Cashflow</h3>
+                <div className="flex items-end gap-3 overflow-x-auto pb-2" style={{ minHeight: 180 }}>
+                  {cashflowData.map(d => {
+                    const creditH = Math.round((d.credit / maxCashflow) * 140);
+                    const debitH = Math.round((d.debit / maxCashflow) * 140);
+                    const isPositive = d.net >= 0;
+                    return (
+                      <div key={d.month} className="flex flex-col items-center gap-1 flex-shrink-0" style={{ minWidth: 64 }}>
+                        <div className="text-xs font-mono" style={{ color: isPositive ? "var(--accent)" : "var(--red-c)" }}>
+                          {isPositive ? "+" : ""}{fmt(d.net)}
+                        </div>
+                        <div className="flex items-end gap-1">
+                          <div title={`In: ${currency} ${fmt(d.credit)}`} style={{ width: 20, height: Math.max(creditH, 2), background: "var(--accent)", borderRadius: "3px 3px 0 0" }} />
+                          <div title={`Out: ${currency} ${fmt(d.debit)}`} style={{ width: 20, height: Math.max(debitH, 2), background: "var(--red-c)", borderRadius: "3px 3px 0 0" }} />
+                        </div>
+                        <div className="text-xs whitespace-nowrap" style={{ color: "var(--muted2)" }}>
+                          {new Date(d.month + "-01").toLocaleDateString("en-ZA", { month: "short", year: "2-digit" })}
+                        </div>
                       </div>
-                      <div className="flex items-end gap-1">
-                        <div title={`Credit: ${currency} ${fmt(d.credit)}`} style={{ width: 20, height: creditH, background: "var(--accent)", borderRadius: "3px 3px 0 0", minHeight: 2 }} />
-                        <div title={`Debit: ${currency} ${fmt(d.debit)}`} style={{ width: 20, height: debitH, background: "var(--red-c)", borderRadius: "3px 3px 0 0", minHeight: 2 }} />
-                      </div>
-                      <div className="text-xs whitespace-nowrap" style={{ color: "var(--muted2)" }}>
-                        {new Date(d.month + "-01").toLocaleDateString("en-ZA", { month: "short", year: "2-digit" })}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+                <div className="flex gap-4 mt-3 pt-3 border-t text-xs" style={{ borderColor: "var(--border)" }}>
+                  <span className="flex items-center gap-1.5"><span style={{ width: 12, height: 12, background: "var(--accent)", borderRadius: 2, display: "inline-block" }} /> Money In</span>
+                  <span className="flex items-center gap-1.5"><span style={{ width: 12, height: 12, background: "var(--red-c)", borderRadius: 2, display: "inline-block" }} /> Money Out</span>
+                </div>
               </div>
-              <div className="flex gap-4 mt-3 pt-3 border-t text-xs" style={{ borderColor: "var(--border)" }}>
-                <span className="flex items-center gap-1.5"><span style={{ width: 12, height: 12, background: "var(--accent)", borderRadius: 2, display: "inline-block" }} /> Money In (Credits)</span>
-                <span className="flex items-center gap-1.5"><span style={{ width: 12, height: 12, background: "var(--red-c)", borderRadius: 2, display: "inline-block" }} /> Money Out (Debits)</span>
-              </div>
-            </div>
-          )}
 
-          {/* Monthly breakdown table */}
-          {cashflowData.length > 0 && (
-            <div className="rounded-lg overflow-hidden mt-4" style={{ border: "1px solid var(--border)" }}>
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
-                    {["Month", "Money In", "Money Out", "Net"].map(h => (
-                      <th key={h} className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider" style={{ color: "var(--muted2)" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {cashflowData.slice().reverse().map(d => (
-                    <tr key={d.month} className="border-b hover:bg-[var(--card3)]" style={{ borderColor: "var(--border)" }}>
-                      <td className="px-4 py-2.5 font-medium">
-                        {new Date(d.month + "-01").toLocaleDateString("en-ZA", { month: "long", year: "numeric" })}
-                      </td>
-                      <td className="px-4 py-2.5 font-mono" style={{ color: "var(--accent)" }}>{currency} {fmt(d.credit)}</td>
-                      <td className="px-4 py-2.5 font-mono" style={{ color: "var(--red-c)" }}>{currency} {fmt(d.debit)}</td>
-                      <td className="px-4 py-2.5 font-mono font-semibold" style={{ color: d.net >= 0 ? "var(--accent)" : "var(--red-c)" }}>
-                        {d.net >= 0 ? "+" : ""}{currency} {fmt(d.net)}
-                      </td>
+              {/* Monthly breakdown table */}
+              <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
+                      {["Month", "Money In", "Money Out", "Net"].map(h => (
+                        <th key={h} className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider" style={{ color: "var(--muted2)" }}>{h}</th>
+                      ))}
                     </tr>
+                  </thead>
+                  <tbody>
+                    {cashflowData.slice().reverse().map(d => (
+                      <tr key={d.month} className="border-b hover:bg-[var(--card3)]" style={{ borderColor: "var(--border)" }}>
+                        <td className="px-4 py-2.5 font-medium">
+                          {new Date(d.month + "-01").toLocaleDateString("en-ZA", { month: "long", year: "numeric" })}
+                        </td>
+                        <td className="px-4 py-2.5 font-mono" style={{ color: "var(--accent)" }}>{currency} {fmt(d.credit)}</td>
+                        <td className="px-4 py-2.5 font-mono" style={{ color: "var(--red-c)" }}>{currency} {fmt(d.debit)}</td>
+                        <td className="px-4 py-2.5 font-mono font-semibold" style={{ color: d.net >= 0 ? "var(--accent)" : "var(--red-c)" }}>
+                          {d.net >= 0 ? "+" : ""}{currency} {fmt(d.net)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Recent entries list */}
+              <div className="rounded-lg overflow-hidden mt-4" style={{ border: "1px solid var(--border)" }}>
+                <div className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider" style={{ background: "var(--card)", color: "var(--muted2)", borderBottom: "1px solid var(--border)" }}>
+                  Recent Entries
+                </div>
+                <div style={{ background: "var(--card2)" }}>
+                  {bankTxns.slice(0, 20).map(t => (
+                    <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 border-b text-xs" style={{ borderColor: "var(--border)" }}>
+                      <span style={{ color: "var(--muted2)", minWidth: 70 }}>{fdateShort(t.txn_date)}</span>
+                      <span className="flex-1 truncate font-medium">{t.description}</span>
+                      {t.credit > 0 && <span className="font-mono font-semibold" style={{ color: "var(--accent)" }}>+{currency} {fmt(t.credit)}</span>}
+                      {t.debit > 0 && <span className="font-mono font-semibold" style={{ color: "var(--red-c)" }}>-{currency} {fmt(t.debit)}</span>}
+                      <button onClick={() => handleDelete(t.id)} className="px-1.5 py-0.5 rounded" style={{ color: "var(--muted2)", border: "1px solid var(--border)", background: "var(--card)" }}>✕</button>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
