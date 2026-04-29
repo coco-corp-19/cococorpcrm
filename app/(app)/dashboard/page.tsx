@@ -22,6 +22,26 @@ export default async function DashboardPage() {
     supabase.from("organizations").select("currency, name").single(),
   ]);
 
+  // Bank transactions (new table — graceful fallback if not yet migrated)
+  let bankActual = 0;
+  let bankLastDate: string | null = null;
+  try {
+    const { data: bankTxns } = await supabase
+      .from("fact_bank_transactions")
+      .select("balance, txn_date, credit, debit")
+      .order("txn_date", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(200);
+    if (bankTxns && bankTxns.length > 0) {
+      // Use the latest balance field if available, else derive from net credits/debits
+      const latest = bankTxns[0];
+      bankActual = latest.balance != null
+        ? Number(latest.balance)
+        : bankTxns.reduce((s: number, t: { credit: number; debit: number }) => s + Number(t.credit || 0) - Number(t.debit || 0), 0);
+      bankLastDate = latest.txn_date;
+    }
+  } catch { /* table not yet created */ }
+
   const currency = org?.currency || "ZAR";
   const cur = currency === "ZAR" ? "R" : currency === "USD" ? "$" : currency === "EUR" ? "€" : "R";
   void cur;
@@ -59,10 +79,12 @@ export default async function DashboardPage() {
   const profit = revenue - totalOpex;
   const margin = revenue > 0 ? profit / revenue : 0;
 
-  // Cashflow
+  // Cashflow — prefer bank transactions, fall back to legacy fact_cashflow
   const latestCf = allCashflow[0];
-  const actualCashflow = latestCf ? Number(latestCf.balance) : 0;
-  const lastCfDate = latestCf?.record_date || null;
+  const legacyCfBalance = latestCf ? Number(latestCf.balance) : 0;
+  const legacyCfDate = latestCf?.record_date || null;
+  const actualCashflow = bankActual > 0 ? bankActual : legacyCfBalance;
+  const lastCfDate = bankActual > 0 ? bankLastDate : legacyCfDate;
   const calcCashflow = revenue - totalOpex;
   const cfVariance = actualCashflow - calcCashflow;
 
