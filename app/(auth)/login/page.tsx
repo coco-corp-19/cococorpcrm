@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { login } from "@/server-actions/auth";
 
-export default function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center p-4">
       <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
         <h1 className="text-xl font-semibold">Login</h1>
+        {error && (
+          <div className="mt-3 rounded-md px-3 py-2 text-sm" style={{ background: "rgba(239,68,68,.12)", border: "1px solid var(--red-c)", color: "var(--red-c)" }}>
+            {error}
+          </div>
+        )}
         <form action={login} className="mt-4 space-y-3">
           <input
             name="email"
