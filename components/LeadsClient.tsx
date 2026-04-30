@@ -3,6 +3,195 @@
 import { useState, useRef } from "react";
 import { updateLeadStatus, deleteLead, createLead, updateLead, convertLeadToCustomer } from "@/server-actions/leads";
 
+// ─── Tinder-style swipe card view ────────────────────────────────────────────
+function SwipeView({ leads, statuses, cur, onStatusChange }: {
+  leads: Lead[]; statuses: Status[]; cur: string;
+  onStatusChange: (id: number, newStatusId: number) => Promise<void>;
+}) {
+  const [idx, setIdx] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startX = useRef(0);
+  const THRESHOLD = 90;
+
+  const remaining = leads.slice(idx);
+  const lead = remaining[0];
+
+  async function act(direction: "promote" | "demote" | "skip") {
+    if (direction !== "skip" && lead) {
+      const stIdx = statuses.findIndex(s => s.id === lead.status_id);
+      const next = direction === "promote" ? statuses[stIdx + 1] : statuses[stIdx - 1];
+      if (next) await onStatusChange(lead.id, next.id);
+    }
+    setOffset(0);
+    setIdx(i => i + 1);
+  }
+
+  function onPointerDown(e: React.PointerEvent) {
+    startX.current = e.clientX;
+    setDragging(true);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    if (!dragging) return;
+    setOffset(e.clientX - startX.current);
+  }
+  function onPointerUp() {
+    setDragging(false);
+    const stIdx = statuses.findIndex(s => s.id === lead?.status_id);
+    if (offset > THRESHOLD && stIdx < statuses.length - 1) act("promote");
+    else if (offset < -THRESHOLD && stIdx > 0) act("demote");
+    else setOffset(0);
+  }
+
+  if (!lead) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="text-5xl mb-4">✓</div>
+        <p className="text-lg font-semibold">All leads reviewed!</p>
+        <p className="text-sm mt-1 mb-6" style={{ color: "var(--muted2)" }}>You&apos;ve gone through all {leads.length} leads</p>
+        <button onClick={() => setIdx(0)} className="px-5 py-2 rounded-lg text-sm font-semibold"
+          style={{ background: "var(--accent)", color: "#fff" }}>Start over</button>
+      </div>
+    );
+  }
+
+  const st = statuses.find(s => s.id === lead.status_id);
+  const stColor = STATUS_COLORS[lead.status_id ?? 0] || "var(--muted2)";
+  const stIdx = statuses.findIndex(s => s.id === lead.status_id);
+  const canPromote = stIdx < statuses.length - 1;
+  const canDemote = stIdx > 0;
+  const nextSt = canPromote ? statuses[stIdx + 1] : null;
+  const prevSt = canDemote ? statuses[stIdx - 1] : null;
+  const rotation = offset * 0.07;
+  const swipeRatio = Math.min(1, Math.abs(offset) / THRESHOLD);
+
+  return (
+    <div className="flex flex-col items-center py-4 select-none">
+      <p className="text-xs mb-6 font-mono" style={{ color: "var(--muted2)" }}>
+        {idx + 1} / {leads.length}
+      </p>
+
+      {/* Card stack */}
+      <div className="relative w-full max-w-sm" style={{ height: 420 }}>
+        {/* Shadow cards */}
+        {remaining[2] && (
+          <div className="absolute inset-x-6 bottom-0 rounded-2xl" style={{ height: 400, background: "var(--card)", border: "1px solid var(--border)", transform: "scale(0.90) translateY(8px)", transformOrigin: "bottom" }} />
+        )}
+        {remaining[1] && (
+          <div className="absolute inset-x-3 bottom-0 rounded-2xl" style={{ height: 400, background: "var(--card2)", border: "1px solid var(--border)", transform: "scale(0.95) translateY(4px)", transformOrigin: "bottom" }} />
+        )}
+
+        {/* Main card */}
+        <div
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={() => { setDragging(false); setOffset(0); }}
+          className="absolute inset-0 rounded-2xl cursor-grab active:cursor-grabbing overflow-hidden"
+          style={{
+            background: "var(--card2)",
+            border: "1px solid var(--border)",
+            transform: `translateX(${offset}px) rotate(${rotation}deg)`,
+            transition: dragging ? "none" : "transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
+            boxShadow: "0 24px 64px rgba(0,0,0,.35)",
+            userSelect: "none",
+            touchAction: "none",
+          }}>
+
+          {/* Swipe labels */}
+          {offset > 20 && (
+            <div className="absolute top-5 left-5 px-3 py-1.5 rounded-lg border-2 text-xs font-bold uppercase tracking-wider"
+              style={{ borderColor: "var(--accent)", color: "var(--accent)", opacity: swipeRatio, background: "rgba(16,185,129,.12)" }}>
+              Promote → {nextSt?.name}
+            </div>
+          )}
+          {offset < -20 && (
+            <div className="absolute top-5 right-5 px-3 py-1.5 rounded-lg border-2 text-xs font-bold uppercase tracking-wider"
+              style={{ borderColor: "var(--red-c)", color: "var(--red-c)", opacity: swipeRatio, background: "rgba(239,68,68,.12)" }}>
+              {prevSt?.name} ← Demote
+            </div>
+          )}
+
+          {/* Status bar */}
+          <div className="px-6 pt-5 pb-2 flex justify-between items-center">
+            <span className="px-3 py-1 rounded-full text-xs font-bold"
+              style={{ background: stColor + "22", color: stColor }}>{st?.name || "—"}</span>
+            <span className="text-xs font-mono" style={{ color: "var(--muted2)" }}>{fdate(lead.lead_date)}</span>
+          </div>
+
+          {/* Content */}
+          <div className="px-6 py-4">
+            <h2 className="text-2xl font-bold mb-2 leading-tight">{lead.name}</h2>
+            {lead.contact && <p className="text-sm mb-1" style={{ color: "var(--muted2)" }}>👤 {lead.contact}</p>}
+            {lead.phone && <p className="text-sm mb-1" style={{ color: "var(--muted2)" }}>📞 {lead.phone}</p>}
+          </div>
+
+          {/* Values */}
+          <div className="mx-6 grid grid-cols-2 gap-3 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
+            <div className="rounded-xl p-3" style={{ background: "var(--card)" }}>
+              <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Opportunity</p>
+              <p className="text-lg font-bold font-mono" style={{ color: "var(--accent)" }}>{cur} {fmt(lead.opportunity_value)}</p>
+            </div>
+            <div className="rounded-xl p-3" style={{ background: "var(--card)" }}>
+              <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Pipeline</p>
+              <p className="text-lg font-bold font-mono" style={{ color: "var(--purple-c)" }}>{cur} {fmt(lead.opportunity_weighted)}</p>
+            </div>
+          </div>
+
+          {/* Funnel indicators */}
+          <div className="mx-6 mt-4 flex gap-4 justify-around">
+            {(["contacted", "responded", "developed", "paid"] as const).map(f => (
+              <div key={f} className="flex flex-col items-center gap-1">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                  style={{ background: lead[f] ? "rgba(16,185,129,.2)" : "var(--card)", color: lead[f] ? "var(--accent)" : "var(--muted2)", border: `1px solid ${lead[f] ? "var(--accent)" : "var(--border)"}` }}>
+                  {lead[f] ? "✓" : "○"}
+                </div>
+                <span className="text-xs capitalize" style={{ color: "var(--muted2)" }}>{f.slice(0, 4)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Hint */}
+      <p className="text-xs mt-5 mb-4" style={{ color: "var(--muted2)" }}>
+        Swipe right to promote · Swipe left to demote · Tap buttons below
+      </p>
+
+      {/* Action buttons */}
+      <div className="flex gap-5 items-center">
+        <div className="text-center">
+          <button onClick={() => canDemote && act("demote")} disabled={!canDemote}
+            className="w-14 h-14 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-90"
+            style={{
+              background: canDemote ? "rgba(239,68,68,.15)" : "var(--card)",
+              border: `2px solid ${canDemote ? "var(--red-c)" : "var(--border)"}`,
+              color: canDemote ? "var(--red-c)" : "var(--muted2)",
+            }}>←</button>
+          <p className="text-xs mt-1 w-14 text-center truncate" style={{ color: "var(--muted2)" }}>{prevSt?.name || ""}</p>
+        </div>
+        <div className="text-center">
+          <button onClick={() => act("skip")}
+            className="w-12 h-12 rounded-full flex items-center justify-center text-lg shadow transition-all active:scale-90"
+            style={{ background: "var(--card2)", border: "2px solid var(--border)", color: "var(--muted2)" }}>↺</button>
+          <p className="text-xs mt-1" style={{ color: "var(--muted2)" }}>Skip</p>
+        </div>
+        <div className="text-center">
+          <button onClick={() => canPromote && act("promote")} disabled={!canPromote}
+            className="w-14 h-14 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-90"
+            style={{
+              background: canPromote ? "rgba(16,185,129,.15)" : "var(--card)",
+              border: `2px solid ${canPromote ? "var(--accent)" : "var(--border)"}`,
+              color: canPromote ? "var(--accent)" : "var(--muted2)",
+            }}>→</button>
+          <p className="text-xs mt-1 w-14 text-center truncate" style={{ color: "var(--muted2)" }}>{nextSt?.name || ""}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type Status = { id: number; name: string };
 type Lead = {
   id: number; name: string; phone: string | null; contact: string | null;
@@ -28,7 +217,7 @@ const dot = (v: boolean) => <span style={{ color: v ? "var(--accent)" : "var(--m
 
 export function LeadsClient({ leads, statuses, customers, currency }: Props) {
   const cur = currency === "ZAR" ? "R" : "$";
-  const [view, setView] = useState<"table" | "kanban">("table");
+  const [view, setView] = useState<"table" | "kanban" | "cards">("table");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [modal, setModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
@@ -77,11 +266,11 @@ export function LeadsClient({ leads, statuses, customers, currency }: Props) {
       {/* Controls */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="flex rounded overflow-hidden border" style={{ borderColor: "var(--border)" }}>
-          {(["table", "kanban"] as const).map(v => (
+          {([["table", "Table"], ["kanban", "Board"], ["cards", "Cards"]] as const).map(([v, label]) => (
             <button key={v} onClick={() => setView(v)}
-              className="px-4 py-2 text-xs font-semibold capitalize transition-colors"
+              className="px-3 py-2 text-xs font-semibold transition-colors"
               style={{ background: view === v ? "var(--accent)" : "var(--card2)", color: view === v ? "#fff" : "var(--muted)" }}>
-              {v === "table" ? "Table" : "Board"}
+              {label}
             </button>
           ))}
         </div>
@@ -183,6 +372,18 @@ export function LeadsClient({ leads, statuses, customers, currency }: Props) {
             );
           })}
         </div>
+      )}
+
+      {/* CARDS / TINDER VIEW */}
+      {view === "cards" && (
+        <SwipeView
+          leads={filtered}
+          statuses={statuses}
+          cur={cur}
+          onStatusChange={async (id, newStatusId) => {
+            await updateLeadStatus(id, newStatusId);
+          }}
+        />
       )}
 
       {/* MODAL */}

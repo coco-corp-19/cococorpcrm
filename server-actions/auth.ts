@@ -7,11 +7,32 @@ import { createServerClient } from "@/lib/supabase/server";
 export async function login(formData: FormData) {
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
+  const orgName = String(formData.get("org_name") ?? "").trim();
   const supabase = await createServerClient();
 
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
     redirect("/login?error=" + encodeURIComponent(error.message));
+  }
+
+  // If org name provided, find matching org and set it active
+  if (orgName) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: memberships } = await supabase
+          .from("memberships").select("org_id").eq("user_id", user.id);
+        if (memberships && memberships.length > 0) {
+          const orgIds = memberships.map((m: { org_id: string }) => m.org_id);
+          const { data: orgs } = await supabase
+            .from("organizations").select("id, name")
+            .in("id", orgIds).ilike("name", `%${orgName}%`).limit(1);
+          if (orgs && orgs[0]) {
+            await supabase.auth.updateUser({ data: { active_org_id: orgs[0].id } });
+          }
+        }
+      }
+    } catch { /* non-critical — proceed with default org */ }
   }
 
   revalidatePath("/", "layout");
