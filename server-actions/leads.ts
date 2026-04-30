@@ -27,10 +27,12 @@ export async function createLead(formData: FormData) {
     secured_revenue: formData.get("secured_revenue") || null,
   });
 
+  const productId = formData.get("product_id");
   const { error } = await supabase.from("fact_leads").insert({
     ...parsed,
     total_revenue: parsed.total_revenue || null,
     secured_revenue: parsed.secured_revenue || null,
+    product_id: productId ? Number(productId) : null,
   });
   if (error) throw new Error(error.message);
   revalidatePath("/leads");
@@ -40,6 +42,7 @@ export async function createLead(formData: FormData) {
 export async function updateLead(id: number, formData: FormData) {
   const supabase = await createServerClient();
 
+  const productId = formData.get("product_id");
   const { error } = await supabase.from("fact_leads").update({
     name: formData.get("name"),
     phone: formData.get("phone") || null,
@@ -55,6 +58,7 @@ export async function updateLead(id: number, formData: FormData) {
     responded: formData.get("responded") === "true",
     developed: formData.get("developed") === "true",
     paid: formData.get("paid") === "true",
+    product_id: productId ? Number(productId) : null,
     updated_at: new Date().toISOString(),
   }).eq("id", id);
 

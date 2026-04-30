@@ -4,7 +4,7 @@ import { InvoicesClient } from "@/components/InvoicesClient";
 export default async function InvoicesPage() {
   const supabase = await createServerClient();
 
-  const [{ data: invoices }, { data: customers }, { data: payTypes }, { data: org }] = await Promise.all([
+  const [{ data: invoices }, { data: customers }, { data: payTypes }, { data: products }, { data: org }] = await Promise.all([
     supabase
       .from("fact_invoices")
       .select("id, invoice_number, amount, status, transaction_date, due_date, customer_id, description, payment_type_id, dim_payment_types(name)")
@@ -12,6 +12,7 @@ export default async function InvoicesPage() {
       .order("transaction_date", { ascending: false }),
     supabase.from("dim_customers").select("id, name").is("deleted_at", null).order("name"),
     supabase.from("dim_payment_types").select("id, name").order("name"),
+    supabase.from("dim_products").select("id, name, unit_price, sku, is_active").is("deleted_at", null).order("name"),
     supabase.from("organizations").select("currency").single(),
   ]);
 
@@ -36,6 +37,7 @@ export default async function InvoicesPage() {
         invoices={mappedInvoices}
         customers={customers || []}
         paymentTypes={payTypes || []}
+        products={(products || []).map(p => ({ id: p.id, name: p.name, unit_price: Number(p.unit_price), sku: p.sku ?? null, is_active: p.is_active ?? true }))}
         currency={org?.currency || "ZAR"}
       />
     </section>

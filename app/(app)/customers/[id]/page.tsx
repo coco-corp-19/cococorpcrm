@@ -17,6 +17,30 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
     supabase.from("organizations").select("currency").single(),
   ]);
 
+  // Derive products purchased from invoice lines (graceful — column may not exist yet)
+  let productsPurchased: { id: number; name: string; times: number; revenue: number }[] = [];
+  try {
+    const invoiceIds = (invoices || []).map(i => i.id);
+    if (invoiceIds.length > 0) {
+      const { data: lines } = await supabase
+        .from("fact_invoice_lines")
+        .select("product_id, unit_price, quantity, dim_products(id, name)")
+        .in("invoice_id", invoiceIds)
+        .not("product_id", "is", null);
+      if (lines) {
+        const map: Record<number, { id: number; name: string; times: number; revenue: number }> = {};
+        lines.forEach((l: Record<string, unknown>) => {
+          const prod = l.dim_products as { id: number; name: string } | null;
+          if (!prod) return;
+          if (!map[prod.id]) map[prod.id] = { id: prod.id, name: prod.name, times: 0, revenue: 0 };
+          map[prod.id].times += 1;
+          map[prod.id].revenue += Number(l.unit_price || 0) * Number(l.quantity || 1);
+        });
+        productsPurchased = Object.values(map).sort((a, b) => b.revenue - a.revenue);
+      }
+    }
+  } catch { /* invoice_lines product_id column may not exist yet */ }
+
   if (!customer) notFound();
 
   // Contacts and activities — gracefully handle missing tables
@@ -78,6 +102,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         activities={activities}
         currency={cur}
         customerId={customerId}
+        productsPurchased={productsPurchased}
       />
     </section>
   );

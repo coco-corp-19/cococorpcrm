@@ -24,12 +24,15 @@ function fdate(d: string | null) {
 }
 function fmt(n: number) { return n.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
 
-const TABS = ["Info", "Invoices", "Contacts", "Activities"] as const;
+type ProductPurchased = { id: number; name: string; times: number; revenue: number };
+
+const TABS = ["Info", "Invoices", "Products", "Contacts", "Activities"] as const;
 type Tab = typeof TABS[number];
 
-export function CustomerDetailClient({ customer, invoices, contacts, activities, currency, customerId }: {
+export function CustomerDetailClient({ customer, invoices, contacts, activities, currency, customerId, productsPurchased = [] }: {
   customer: Customer; invoices: Invoice[]; contacts: Contact[];
   activities: Activity[]; currency: string; customerId: number;
+  productsPurchased?: ProductPurchased[];
 }) {
   const toast = useToast();
   const [tab, setTab] = useState<Tab>("Info");
@@ -47,6 +50,7 @@ export function CustomerDetailClient({ customer, invoices, contacts, activities,
             className="px-4 py-2 text-sm font-semibold transition-colors"
             style={{ borderBottom: tab === t ? "2px solid var(--accent)" : "2px solid transparent", color: tab === t ? "var(--accent)" : "var(--muted2)" }}>
             {t}
+            {t === "Products" && productsPurchased.length > 0 && <span className="ml-1 text-xs">({productsPurchased.length})</span>}
             {t === "Contacts" && contacts.length > 0 && <span className="ml-1 text-xs">({contacts.length})</span>}
             {t === "Activities" && activities.length > 0 && <span className="ml-1 text-xs">({activities.length})</span>}
           </button>
@@ -159,6 +163,36 @@ export function CustomerDetailClient({ customer, invoices, contacts, activities,
               </tbody>
             </table></div>
           </div>
+        </div>
+      )}
+
+      {/* PRODUCTS TAB */}
+      {tab === "Products" && (
+        <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+          {productsPurchased.length === 0 ? (
+            <p className="p-6 text-sm text-center" style={{ color: "var(--muted2)" }}>
+              No products linked yet — tag products on invoices to see them here.
+            </p>
+          ) : (
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
+                  {["Product / Service", "Times Purchased", "Revenue"].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left font-semibold uppercase tracking-wider" style={{ color: "var(--muted2)" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {productsPurchased.map(p => (
+                  <tr key={p.id} className="border-b hover:bg-[var(--card3)]" style={{ borderColor: "var(--border)", background: "var(--card2)" }}>
+                    <td className="px-4 py-2.5 font-semibold" style={{ color: "var(--foreground)" }}>{p.name}</td>
+                    <td className="px-4 py-2.5 font-mono" style={{ color: "var(--muted2)" }}>{p.times}×</td>
+                    <td className="px-4 py-2.5 font-mono font-semibold" style={{ color: "var(--accent)" }}>{currency} {fmt(p.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 

@@ -12,8 +12,9 @@ type Invoice = {
 };
 type Customer = { id: number; name: string };
 type PaymentType = { id: number; name: string };
+type Product = { id: number; name: string; unit_price: number; sku: string | null; is_active: boolean };
 
-type Props = { invoices: Invoice[]; customers: Customer[]; paymentTypes: PaymentType[]; currency: string };
+type Props = { invoices: Invoice[]; customers: Customer[]; paymentTypes: PaymentType[]; products?: Product[]; currency: string };
 
 function fmt(n: number) { return Number(n).toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
 function fdate(d: string | null) { if (!d) return "—"; try { return new Date(d).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "2-digit" }); } catch { return "—"; } }
@@ -22,9 +23,9 @@ const STATUS_COLORS: Record<string, string> = {
   Completed: "var(--accent)", Pending: "var(--amber-c)", "Written Off": "var(--red-c)"
 };
 
-type Line = { description: string; quantity: number; unit_price: number };
+type Line = { description: string; quantity: number; unit_price: number; product_id?: number };
 
-export function InvoicesClient({ invoices, customers, paymentTypes, currency }: Props) {
+export function InvoicesClient({ invoices, customers, paymentTypes, products = [], currency }: Props) {
   const cur = currency === "ZAR" ? "R" : "$";
   const toast = useToast();
   const [search, setSearch] = useState("");
@@ -56,6 +57,10 @@ export function InvoicesClient({ invoices, customers, paymentTypes, currency }: 
   function removeLine(i: number) { setLines(l => l.filter((_, idx) => idx !== i)); }
   function setLine(i: number, field: keyof Line, val: string | number) {
     setLines(l => l.map((ln, idx) => idx === i ? { ...ln, [field]: val } : ln));
+  }
+  function pickProduct(i: number, productId: string) {
+    const p = products.find(p => String(p.id) === productId);
+    if (p) setLines(l => l.map((ln, idx) => idx === i ? { ...ln, product_id: p.id, description: p.name, unit_price: p.unit_price } : ln));
   }
   const lineTotal = lines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
 
@@ -248,7 +253,13 @@ export function InvoicesClient({ invoices, customers, paymentTypes, currency }: 
                   </div>
                   <div className="space-y-2 overflow-x-auto">
                     {lines.map((line, i) => (
-                      <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: "1fr 65px 75px 26px", minWidth: 280 }}>
+                      <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: products.length ? "1fr 1fr 65px 75px 26px" : "1fr 65px 75px 26px", minWidth: 280 }}>
+                        {products.length > 0 && (
+                          <select onChange={e => pickProduct(i, e.target.value)} className={inputCss + " text-xs"} style={inputStyle} value={line.product_id ? String(line.product_id) : ""}>
+                            <option value="">— Product (optional) —</option>
+                            {products.filter(p => p.is_active).map(p => <option key={p.id} value={p.id}>{p.name} ({cur} {fmt(p.unit_price)})</option>)}
+                          </select>
+                        )}
                         <input value={line.description} onChange={e => setLine(i, "description", e.target.value)} placeholder="Description" className={inputCss + " text-xs"} style={inputStyle} />
                         <input type="number" value={line.quantity} min={1} onChange={e => setLine(i, "quantity", Number(e.target.value))} placeholder="Qty" className={inputCss + " text-xs"} style={inputStyle} />
                         <input type="number" value={line.unit_price} min={0} step={0.01} onChange={e => setLine(i, "unit_price", Number(e.target.value))} placeholder="Price" className={inputCss + " text-xs"} style={inputStyle} />
@@ -333,7 +344,13 @@ export function InvoicesClient({ invoices, customers, paymentTypes, currency }: 
                   </div>
                   <div className="space-y-2 overflow-x-auto">
                     {lines.map((line, i) => (
-                      <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: "1fr 65px 75px 26px", minWidth: 280 }}>
+                      <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: products.length ? "1fr 1fr 65px 75px 26px" : "1fr 65px 75px 26px", minWidth: 280 }}>
+                        {products.length > 0 && (
+                          <select onChange={e => pickProduct(i, e.target.value)} className={inputCss + " text-xs"} style={inputStyle} value={line.product_id ? String(line.product_id) : ""}>
+                            <option value="">— Product (optional) —</option>
+                            {products.filter(p => p.is_active).map(p => <option key={p.id} value={p.id}>{p.name} ({cur} {fmt(p.unit_price)})</option>)}
+                          </select>
+                        )}
                         <input value={line.description} onChange={e => setLine(i, "description", e.target.value)}
                           placeholder="Description" className={inputCss + " text-xs"} style={inputStyle} />
                         <input type="number" value={line.quantity} min={1} onChange={e => setLine(i, "quantity", Number(e.target.value))}

@@ -59,6 +59,7 @@ export async function createInvoice(formData: FormData) {
         quantity: line.quantity,
         unit_price: line.unit_price,
         position: line.position,
+        product_id: (line as Record<string, unknown>).product_id ? Number((line as Record<string, unknown>).product_id) : null,
       })),
     );
     if (lineError) throw new Error(lineError.message);
@@ -112,7 +113,14 @@ export async function updateInvoice(id: number, formData: FormData) {
   await supabase.from("fact_invoice_lines").delete().eq("invoice_id", id);
   if (lines.length > 0) {
     await supabase.from("fact_invoice_lines").insert(
-      lines.map((l, idx) => ({ invoice_id: id, description: l.description, quantity: l.quantity, unit_price: l.unit_price, position: idx }))
+      lines.map((l, idx) => ({
+        invoice_id: id,
+        description: l.description,
+        quantity: l.quantity,
+        unit_price: l.unit_price,
+        position: idx,
+        product_id: (l as Record<string, unknown>).product_id ? Number((l as Record<string, unknown>).product_id) : null,
+      }))
     );
   }
 

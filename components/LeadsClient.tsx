@@ -199,13 +199,16 @@ type Lead = {
   opportunity_value: number | null; weight: number | null; opportunity_weighted: number | null;
   total_revenue: number | null; secured_revenue: number | null;
   contacted: boolean; responded: boolean; developed: boolean; paid: boolean;
+  product_id: number | null;
 };
 type Customer = { id: number; name: string };
+type Product = { id: number; name: string; unit_price: number };
 
 type Props = {
   leads: Lead[];
   statuses: Status[];
   customers: Customer[];
+  products?: Product[];
   currency: string;
 };
 
@@ -215,7 +218,7 @@ function fdate(d: string | null) { if (!d) return "—"; try { return new Date(d
 function pct(n: number | null) { if (!n) return "0%"; return `${Number(n)}%`; }
 const dot = (v: boolean) => <span style={{ color: v ? "var(--accent)" : "var(--muted2)", marginRight: 1 }}>{v ? "●" : "○"}</span>;
 
-export function LeadsClient({ leads, statuses, customers, currency }: Props) {
+export function LeadsClient({ leads, statuses, customers, products = [], currency }: Props) {
   const cur = currency === "ZAR" ? "R" : "$";
   const [view, setView] = useState<"table" | "kanban" | "cards">("table");
   const [search, setSearch] = useState("");
@@ -298,7 +301,7 @@ export function LeadsClient({ leads, statuses, customers, currency }: Props) {
             <table className="w-full text-xs">
               <thead>
                 <tr style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
-                  {["Date", "Name", "Status", "Opp", "Wt", "Pipeline", "Funnel", ""].map(h => (
+                  {["Date", "Name", "Status", "Product", "Opp", "Wt", "Pipeline", "Funnel", ""].map(h => (
                     <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider" style={{ color: "var(--muted2)", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -313,6 +316,13 @@ export function LeadsClient({ leads, statuses, customers, currency }: Props) {
                       <td className="px-3 py-2 font-medium max-w-[160px] truncate">{l.name}</td>
                       <td className="px-3 py-2">
                         {st && <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: stColor + "22", color: stColor }}>{st.name}</span>}
+                      </td>
+                      <td className="px-3 py-2 max-w-[120px]">
+                        {l.product_id && products.find(p => p.id === l.product_id) && (
+                          <span className="px-2 py-0.5 rounded text-xs truncate block" style={{ background: "rgba(139,92,246,.15)", color: "var(--purple-c)", border: "1px solid rgba(139,92,246,.3)" }}>
+                            {products.find(p => p.id === l.product_id)!.name}
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2 font-mono whitespace-nowrap">{cur} {fmt(l.opportunity_value)}</td>
                       <td className="px-3 py-2">{pct(l.weight)}</td>
@@ -436,6 +446,15 @@ export function LeadsClient({ leads, statuses, customers, currency }: Props) {
                   <input name="last_follow_up" type="date" defaultValue={modal.lead?.last_follow_up?.slice(0, 10) || ""} className={inputStyle} style={inputCss} />
                 </div>
               </div>
+              {products.length > 0 && (
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Product / Service of Interest</label>
+                  <select name="product_id" defaultValue={modal.lead?.product_id ?? ""} className={inputStyle} style={inputCss}>
+                    <option value="">— None (optional) —</option>
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Opportunity Value</label>
