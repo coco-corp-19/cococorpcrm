@@ -55,7 +55,7 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
           ["Total Customers", customers.length, "var(--accent)"],
           ["Active", customers.length, "var(--purple-c)"],
         ].map(([l, v, c]) => (
-          <div key={l as string} className="rounded-lg p-3" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+          <div key={l as string} className="rounded-xl p-3" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
             <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>{l}</div>
             <div className="text-2xl font-bold font-mono" style={{ color: c as string }}>{v}</div>
           </div>
@@ -65,18 +65,52 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customers…"
-          className="px-3 py-2 text-sm rounded border outline-none flex-1 min-w-0"
+          className="px-3 py-2 text-sm rounded-xl border outline-none flex-1 min-w-0"
           style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--foreground)" }} />
         <span className="text-xs" style={{ color: "var(--muted2)" }}>{filtered.length}/{customers.length}</span>
         <button onClick={() => open(null)}
-          className="px-4 py-2 text-sm font-semibold rounded"
+          className="px-4 py-2 text-sm font-semibold rounded-xl"
           style={{ background: "var(--accent)", color: "#fff" }}>
-          + New Customer
+          + New
         </button>
       </div>
 
-      {/* Table */}
-      <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+      {/* Mobile Cards */}
+      <div className="sm:hidden space-y-3">
+        {filtered.map(c => (
+          <div key={c.id} className="rounded-2xl p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+            <div className="flex items-start justify-between mb-2">
+              <Link href={`/customers/${c.id}`} className="font-bold text-base leading-tight" style={{ color: "var(--accent)" }}>{c.name}</Link>
+              {c.source && <span className="ml-2 shrink-0 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: "rgba(16,185,129,.12)", color: "var(--accent)" }}>{c.source}</span>}
+            </div>
+            <div className="space-y-0.5 mb-3">
+              {c.phone && <p className="text-sm" style={{ color: "var(--muted)" }}>📞 {c.phone}</p>}
+              {c.email && <p className="text-sm truncate" style={{ color: "var(--muted)" }}>✉️ {c.email}</p>}
+              {c.contact_person && <p className="text-sm" style={{ color: "var(--muted2)" }}>👤 {c.contact_person}</p>}
+              {!c.phone && !c.email && !c.contact_person && <p className="text-xs italic" style={{ color: "var(--muted2)" }}>No contact details</p>}
+            </div>
+            <div className="flex items-center gap-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => open(c)} className="flex-1 py-2 rounded-xl text-xs font-semibold" style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                ✏️ Edit
+              </button>
+              <Link href={`/customers/${c.id}`} className="flex-1 py-2 rounded-xl text-xs font-semibold text-center" style={{ background: "var(--accent)", color: "#fff" }}>
+                View →
+              </Link>
+              <button onClick={() => handleDelete(c.id, c.name)} disabled={busy} className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(239,68,68,.1)", color: "var(--red-c)" }}>
+                🗑️
+              </button>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && (
+          <div className="text-center py-16 text-sm" style={{ color: "var(--muted2)" }}>
+            {search ? "No customers match your search" : "No customers yet — tap + New to add one"}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Table */}
+      <div className="hidden sm:block rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
         <div className="overflow-x-auto" style={{ background: "var(--card2)" }}>
           <table className="w-full text-xs border-collapse">
             <thead>
@@ -129,12 +163,13 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal — bottom sheet on mobile, centered on desktop */}
       {modal.open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 overflow-y-auto"
+        <div className="fixed inset-0 z-50 flex items-end sm:items-start sm:justify-center sm:p-4 sm:pt-16 overflow-y-auto"
           style={{ background: "rgba(0,0,0,.6)", backdropFilter: "blur(4px)" }}
           onClick={e => { if (e.target === e.currentTarget) close(); }}>
-          <div className="w-full max-w-lg rounded-xl" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+          <div className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-xl max-h-[92vh] overflow-y-auto" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+            <div className="sm:hidden w-10 h-1 rounded-full mx-auto mt-3 mb-1" style={{ background: "var(--border)" }} />
             <div className="flex justify-between items-center px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
               <h3 className="font-semibold">{modal.customer ? `Edit — ${modal.customer.name}` : "New Customer"}</h3>
               <button onClick={close} style={{ color: "var(--muted2)" }}>✕</button>
@@ -185,10 +220,10 @@ export function CustomersClient({ customers }: { customers: Customer[] }) {
                     className={inp + " resize-none"} style={inpS} />
                 </div>
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={close} className="flex-1 py-2 text-sm rounded border"
+              <div className="flex gap-3 pt-2 pb-2">
+                <button type="button" onClick={close} className="flex-1 py-2.5 text-sm rounded-xl border"
                   style={{ borderColor: "var(--border)", color: "var(--muted)" }}>Cancel</button>
-                <button type="submit" disabled={busy} className="flex-1 py-2 text-sm font-semibold rounded"
+                <button type="submit" disabled={busy} className="flex-1 py-2.5 text-sm font-semibold rounded-xl"
                   style={{ background: "var(--accent)", color: "#fff", opacity: busy ? .6 : 1 }}>
                   {busy ? "Saving…" : modal.customer ? "Update" : "Create Customer"}
                 </button>

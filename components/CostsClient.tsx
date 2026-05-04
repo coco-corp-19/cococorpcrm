@@ -83,7 +83,7 @@ export function CostsClient({ costs, categories, accounts, currency }: Props) {
     <div>
       {/* Summary KPI */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-        <div className="rounded-lg p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+        <div className="rounded-xl p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
           <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Total OPEX</div>
           <div className="text-2xl font-bold font-mono" style={{ color: "var(--red-c)" }}>{cur} {fmt(total)}</div>
           <div className="text-xs mt-1" style={{ color: "var(--muted2)" }}>{filtered.length} items</div>
@@ -92,7 +92,7 @@ export function CostsClient({ costs, categories, accounts, currency }: Props) {
 
       {/* Controls */}
       <div className="flex flex-wrap gap-3 items-center mb-4">
-        <div className="flex rounded overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+        <div className="flex rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
           {[["table", "Table"], ["monthly", "Monthly"]].map(([k, l]) => (
             <button key={k} onClick={() => setView(k as typeof view)} className="px-3 py-1.5 text-xs font-semibold transition-colors"
               style={{ background: view === k ? "var(--accent)" : "var(--card2)", color: view === k ? "#fff" : "var(--muted)" }}>{l}</button>
@@ -101,78 +101,107 @@ export function CostsClient({ costs, categories, accounts, currency }: Props) {
         {view === "table" && (
           <>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
-              className="px-3 py-1.5 text-xs rounded border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--foreground)" }} />
+              className="px-3 py-1.5 text-xs rounded-xl border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--foreground)" }} />
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }} />
+              className="px-3 py-1.5 text-xs rounded-xl border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }} />
             <span className="text-xs" style={{ color: "var(--muted2)" }}>to</span>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }} />
+              className="px-3 py-1.5 text-xs rounded-xl border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }} />
             <select value={catFilter} onChange={e => setCatFilter(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }}>
+              className="px-3 py-1.5 text-xs rounded-xl border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }}>
               <option value="">All Categories</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <select value={acctFilter} onChange={e => setAcctFilter(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }}>
+              className="px-3 py-1.5 text-xs rounded-xl border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }}>
               <option value="">All Accounts</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             {(catFilter || acctFilter || dateFrom || dateTo || search) && (
               <button onClick={() => { setCatFilter(""); setAcctFilter(""); setDateFrom(""); setDateTo(""); setSearch(""); }}
-                className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--red-c)", color: "var(--red-c)" }}>✕ Clear</button>
+                className="text-xs px-2 py-1 rounded-xl border" style={{ borderColor: "var(--red-c)", color: "var(--red-c)" }}>✕ Clear</button>
             )}
           </>
         )}
         {view === "monthly" && (
           <>
             <input type="month" value={mFrom} onChange={e => setMFrom(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }} />
+              className="px-3 py-1.5 text-xs rounded-xl border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }} />
             <span className="text-xs" style={{ color: "var(--muted2)" }}>to</span>
             <input type="month" value={mTo} onChange={e => setMTo(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }} />
+              className="px-3 py-1.5 text-xs rounded-xl border outline-none" style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }} />
           </>
         )}
-        <button onClick={() => setModal(true)} className="ml-auto px-4 py-1.5 text-xs font-semibold rounded" style={{ background: "var(--accent)", color: "#fff" }}>+ New Cost</button>
+        <button onClick={() => setModal(true)} className="ml-auto px-4 py-1.5 text-xs font-semibold rounded-xl" style={{ background: "var(--accent)", color: "#fff" }}>+ New Cost</button>
       </div>
 
       {/* TABLE VIEW */}
       {view === "table" && (
-        <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-          <div className="overflow-x-auto" style={{ background: "var(--card2)" }}>
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
-                  {["Date", "Details", "Category", "Amount", "Account", "Recouped", ""].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: "var(--muted2)" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(c => (
-                  <tr key={c.id} className="border-b hover:bg-[var(--card3)]" style={{ borderColor: "var(--border)" }}>
-                    <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--muted2)" }}>{c.transaction_date}</td>
-                    <td className="px-3 py-2 max-w-[200px] truncate">{c.cost_details || "—"}</td>
-                    <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{c.category_name || "—"}</td>
-                    <td className="px-3 py-2 font-mono font-semibold whitespace-nowrap" style={{ color: "var(--red-c)" }}>{cur} {fmt(c.amount)}</td>
-                    <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{c.account_name || "—"}</td>
-                    <td className="px-3 py-2">
-                      {c.recouped === "Y" && <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: "rgba(16,185,129,.15)", color: "var(--accent)" }}>Recouped</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex gap-1">
-                        <button onClick={() => setEditCost(c)}
-                          className="px-2 py-1 rounded text-xs" style={{ border: "1px solid var(--border)", background: "var(--card2)" }}>✏️</button>
-                        <button onClick={async () => { if (!confirm("Delete this cost?")) return; try { await deleteCost(c.id); toast.success("Cost deleted"); } catch { toast.error("Failed to delete"); } }}
-                          className="px-2 py-1 rounded text-xs" style={{ border: "1px solid var(--border)", background: "var(--card2)" }}>🗑️</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && <tr><td colSpan={7} className="px-3 py-6 text-center" style={{ color: "var(--muted2)" }}>No costs found</td></tr>}
-              </tbody>
-            </table>
+        <>
+          {/* Mobile Cards */}
+          <div className="sm:hidden space-y-3">
+            {filtered.map(c => (
+              <div key={c.id} className="rounded-2xl p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+                <div className="flex items-start justify-between mb-1">
+                  <div className="flex-1 mr-3">
+                    <p className="font-semibold text-sm leading-tight">{c.cost_details || "—"}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--muted2)" }}>{c.category_name || "Uncategorized"}</p>
+                  </div>
+                  <p className="text-xl font-bold font-mono shrink-0" style={{ color: "var(--red-c)" }}>{cur} {fmt(c.amount)}</p>
+                </div>
+                <div className="flex flex-wrap gap-3 text-xs mb-3 mt-2" style={{ color: "var(--muted2)" }}>
+                  <span>📅 {c.transaction_date}</span>
+                  {c.account_name && <span>🏦 {c.account_name}</span>}
+                  {c.recouped === "Y" && <span className="px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(16,185,129,.15)", color: "var(--accent)" }}>Recouped</span>}
+                </div>
+                <div className="flex gap-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+                  <button onClick={() => setEditCost(c)} className="flex-1 py-2 rounded-xl text-xs font-semibold" style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}>✏️ Edit</button>
+                  <button onClick={async () => { if (!confirm("Delete this cost?")) return; try { await deleteCost(c.id); toast.success("Cost deleted"); } catch { toast.error("Failed to delete"); } }}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(239,68,68,.1)", color: "var(--red-c)" }}>🗑️</button>
+                </div>
+              </div>
+            ))}
+            {filtered.length === 0 && <div className="text-center py-16 text-sm" style={{ color: "var(--muted2)" }}>No costs found</div>}
           </div>
-        </div>
+
+          {/* Desktop Table */}
+          <div className="hidden sm:block rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+            <div className="overflow-x-auto" style={{ background: "var(--card2)" }}>
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
+                    {["Date", "Details", "Category", "Amount", "Account", "Recouped", ""].map(h => (
+                      <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: "var(--muted2)" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(c => (
+                    <tr key={c.id} className="border-b hover:bg-[var(--card3)]" style={{ borderColor: "var(--border)" }}>
+                      <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--muted2)" }}>{c.transaction_date}</td>
+                      <td className="px-3 py-2 max-w-[200px] truncate">{c.cost_details || "—"}</td>
+                      <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{c.category_name || "—"}</td>
+                      <td className="px-3 py-2 font-mono font-semibold whitespace-nowrap" style={{ color: "var(--red-c)" }}>{cur} {fmt(c.amount)}</td>
+                      <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{c.account_name || "—"}</td>
+                      <td className="px-3 py-2">
+                        {c.recouped === "Y" && <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: "rgba(16,185,129,.15)", color: "var(--accent)" }}>Recouped</span>}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex gap-1">
+                          <button onClick={() => setEditCost(c)}
+                            className="px-2 py-1 rounded text-xs" style={{ border: "1px solid var(--border)", background: "var(--card2)" }}>✏️</button>
+                          <button onClick={async () => { if (!confirm("Delete this cost?")) return; try { await deleteCost(c.id); toast.success("Cost deleted"); } catch { toast.error("Failed to delete"); } }}
+                            className="px-2 py-1 rounded text-xs" style={{ border: "1px solid var(--border)", background: "var(--card2)" }}>🗑️</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filtered.length === 0 && <tr><td colSpan={7} className="px-3 py-6 text-center" style={{ color: "var(--muted2)" }}>No costs found</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
       {/* MONTHLY VIEW */}
@@ -216,12 +245,13 @@ export function CostsClient({ costs, categories, accounts, currency }: Props) {
         </div>
       )}
 
-      {/* Edit Cost Modal */}
+      {/* Edit Cost Modal — bottom sheet on mobile */}
       {editCost && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 overflow-y-auto"
+        <div className="fixed inset-0 z-50 flex items-end sm:items-start sm:justify-center sm:p-4 sm:pt-16 overflow-y-auto"
           style={{ background: "rgba(0,0,0,.6)", backdropFilter: "blur(4px)" }}
           onClick={e => { if (e.target === e.currentTarget) setEditCost(null); }}>
-          <div className="w-full max-w-md rounded-xl" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+          <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-xl max-h-[92vh] overflow-y-auto" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+            <div className="sm:hidden w-10 h-1 rounded-full mx-auto mt-3 mb-1" style={{ background: "var(--border)" }} />
             <div className="flex justify-between items-center px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
               <h3 className="font-semibold">Edit Cost</h3>
               <button onClick={() => setEditCost(null)} style={{ color: "var(--muted2)" }}>✕</button>
@@ -270,9 +300,9 @@ export function CostsClient({ costs, categories, accounts, currency }: Props) {
                   <option value="Y">Yes</option>
                 </select>
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setEditCost(null)} className="flex-1 py-2 text-sm rounded border" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>Cancel</button>
-                <button type="submit" disabled={busy} className="flex-1 py-2 text-sm font-semibold rounded" style={{ background: "var(--accent)", color: "#fff", opacity: busy ? .6 : 1 }}>
+              <div className="flex gap-3 pt-2 pb-2">
+                <button type="button" onClick={() => setEditCost(null)} className="flex-1 py-2.5 text-sm rounded-xl border" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>Cancel</button>
+                <button type="submit" disabled={busy} className="flex-1 py-2.5 text-sm font-semibold rounded-xl" style={{ background: "var(--accent)", color: "#fff", opacity: busy ? .6 : 1 }}>
                   {busy ? "Saving…" : "Update Cost"}
                 </button>
               </div>
@@ -281,11 +311,12 @@ export function CostsClient({ costs, categories, accounts, currency }: Props) {
         </div>
       )}
 
-      {/* New Cost Modal */}
+      {/* New Cost Modal — bottom sheet on mobile */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 overflow-y-auto" style={{ background: "rgba(0,0,0,.6)", backdropFilter: "blur(4px)" }}
+        <div className="fixed inset-0 z-50 flex items-end sm:items-start sm:justify-center sm:p-4 sm:pt-16 overflow-y-auto" style={{ background: "rgba(0,0,0,.6)", backdropFilter: "blur(4px)" }}
           onClick={e => { if (e.target === e.currentTarget) setModal(false); }}>
-          <div className="w-full max-w-md rounded-xl" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+          <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-xl max-h-[92vh] overflow-y-auto" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+            <div className="sm:hidden w-10 h-1 rounded-full mx-auto mt-3 mb-1" style={{ background: "var(--border)" }} />
             <div className="flex justify-between items-center px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
               <h3 className="font-semibold">New Cost</h3>
               <button onClick={() => setModal(false)} style={{ color: "var(--muted2)" }}>✕</button>
@@ -329,9 +360,9 @@ export function CostsClient({ costs, categories, accounts, currency }: Props) {
                   <option value="Y">Yes</option>
                 </select>
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModal(false)} className="flex-1 py-2 text-sm rounded border" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>Cancel</button>
-                <button type="submit" disabled={busy} className="flex-1 py-2 text-sm font-semibold rounded" style={{ background: "var(--accent)", color: "#fff" }}>
+              <div className="flex gap-3 pt-2 pb-2">
+                <button type="button" onClick={() => setModal(false)} className="flex-1 py-2.5 text-sm rounded-xl border" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>Cancel</button>
+                <button type="submit" disabled={busy} className="flex-1 py-2.5 text-sm font-semibold rounded-xl" style={{ background: "var(--accent)", color: "#fff" }}>
                   {busy ? "Saving…" : "Create Cost"}
                 </button>
               </div>

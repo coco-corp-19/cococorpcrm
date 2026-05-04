@@ -212,9 +212,37 @@ export function BillingClient({ invoices, customers, currency }: Props) {
         <div className="px-4 py-3 border-b flex justify-between items-center flex-wrap gap-3" style={{ borderColor: "var(--border)", background: "var(--card2)" }}>
           <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted2)" }}>🧾 All Invoices</h3>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
-            className="px-3 py-1.5 text-xs rounded border outline-none" style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
+            className="px-3 py-1.5 text-xs rounded border outline-none flex-1 sm:flex-none sm:w-48" style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
         </div>
-        <div className="overflow-x-auto" style={{ background: "var(--card2)" }}>
+
+        {/* Mobile Cards */}
+        <div className="sm:hidden divide-y" style={{ background: "var(--card2)", borderColor: "var(--border)" }}>
+          {allInvoices.map(inv => {
+            const cust = customers.find(c => c.id === inv.customer_id);
+            return (
+              <div key={inv.id} className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-sm" style={{ color: "var(--accent)" }}>{inv.invoice_number || `#${inv.id}`}</span>
+                  {statBadge(inv.status)}
+                </div>
+                <div className="flex items-end justify-between mb-2">
+                  <p className="font-semibold text-sm">{cust?.name ?? `#${inv.customer_id}`}</p>
+                  <p className="text-xl font-bold font-mono">{cur} {fmt(inv.amount)}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs" style={{ color: "var(--muted2)" }}>📅 {inv.transaction_date}</p>
+                  <a href={`/invoices/${inv.id}/print`} target="_blank" rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                    style={{ background: "var(--accent)", color: "#fff" }}>🖨️ Print</a>
+                </div>
+              </div>
+            );
+          })}
+          {allInvoices.length === 0 && <div className="p-10 text-center text-sm" style={{ color: "var(--muted2)" }}>No invoices found</div>}
+        </div>
+
+        {/* Desktop Table */}
+        <div className="hidden sm:block overflow-x-auto" style={{ background: "var(--card2)" }}>
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { updateLeadStatus, deleteLead, createLead, updateLead, convertLeadToCustomer } from "@/server-actions/leads";
 
 // ─── Tinder-style swipe card view ────────────────────────────────────────────
@@ -141,7 +141,7 @@ function SwipeView({ leads, statuses, cur, onStatusChange }: {
 
           {/* Funnel indicators */}
           <div className="mx-6 mt-4 flex gap-4 justify-around">
-            {(["contacted", "responded", "developed", "paid"] as const).map(f => (
+            {(["contacted", "responded", "developed", "completed"] as const).map(f => (
               <div key={f} className="flex flex-col items-center gap-1">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
                   style={{ background: lead[f] ? "rgba(16,185,129,.2)" : "var(--card)", color: lead[f] ? "var(--accent)" : "var(--muted2)", border: `1px solid ${lead[f] ? "var(--accent)" : "var(--border)"}` }}>
@@ -198,7 +198,7 @@ type Lead = {
   lead_date: string | null; status_id: number | null; last_follow_up: string | null;
   opportunity_value: number | null; weight: number | null; opportunity_weighted: number | null;
   total_revenue: number | null; secured_revenue: number | null;
-  contacted: boolean; responded: boolean; developed: boolean; paid: boolean;
+  contacted: boolean; responded: boolean; developed: boolean; completed: boolean;
   product_id: number | null;
 };
 type Customer = { id: number; name: string };
@@ -226,6 +226,36 @@ export function LeadsClient({ leads, statuses, customers, products = [], currenc
   const [modal, setModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [busy, setBusy] = useState(false);
   const dragId = useRef<number | null>(null);
+
+  type FunnelState = { contacted: boolean; responded: boolean; developed: boolean; completed: boolean };
+  const [funnelState, setFunnelState] = useState<FunnelState>({ contacted: false, responded: false, developed: false, completed: false });
+  const [modalWeight, setModalWeight] = useState(0);
+
+  useEffect(() => {
+    if (modal.open) {
+      setFunnelState({
+        contacted: modal.lead?.contacted ?? false,
+        responded: modal.lead?.responded ?? false,
+        developed: modal.lead?.developed ?? false,
+        completed: modal.lead?.completed ?? false,
+      });
+      setModalWeight(modal.lead?.weight ?? 0);
+    }
+  }, [modal.open, modal.lead]);
+
+  function computeDefaultWeight(f: FunnelState): number {
+    if (f.completed) return 99;
+    if (f.developed) return 50;
+    if (f.responded) return 20;
+    if (f.contacted) return 10;
+    return 0;
+  }
+
+  function handleFunnelChange(stage: keyof FunnelState, value: boolean) {
+    const next = { ...funnelState, [stage]: value };
+    setFunnelState(next);
+    setModalWeight(computeDefaultWeight(next));
+  }
 
   const filtered = leads.filter(l => {
     if (statusFilter && String(l.status_id) !== statusFilter) return false;
@@ -296,55 +326,107 @@ export function LeadsClient({ leads, statuses, customers, products = [], currenc
 
       {/* TABLE VIEW */}
       {view === "table" && (
-        <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
-                  {["Date", "Name", "Status", "Product", "Opp", "Wt", "Pipeline", "Funnel", ""].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider" style={{ color: "var(--muted2)", whiteSpace: "nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(l => {
-                  const st = statuses.find(s => s.id === l.status_id);
-                  const stColor = STATUS_COLORS[l.status_id ?? 0] || "var(--muted2)";
-                  return (
-                    <tr key={l.id} className="border-b hover:bg-[var(--card3)]" style={{ borderColor: "var(--border)" }}>
-                      <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--muted2)" }}>{fdate(l.lead_date)}</td>
-                      <td className="px-3 py-2 font-medium max-w-[160px] truncate">{l.name}</td>
-                      <td className="px-3 py-2">
-                        {st && <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: stColor + "22", color: stColor }}>{st.name}</span>}
-                      </td>
-                      <td className="px-3 py-2 max-w-[120px]">
-                        {l.product_id && products.find(p => p.id === l.product_id) && (
-                          <span className="px-2 py-0.5 rounded text-xs truncate block" style={{ background: "rgba(139,92,246,.15)", color: "var(--purple-c)", border: "1px solid rgba(139,92,246,.3)" }}>
-                            {products.find(p => p.id === l.product_id)!.name}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 font-mono whitespace-nowrap">{cur} {fmt(l.opportunity_value)}</td>
-                      <td className="px-3 py-2">{pct(l.weight)}</td>
-                      <td className="px-3 py-2 font-mono whitespace-nowrap" style={{ color: "var(--purple-c)" }}>{cur} {fmt(l.opportunity_weighted)}</td>
-                      <td className="px-3 py-2">{dot(l.contacted)}{dot(l.responded)}{dot(l.developed)}{dot(l.paid)}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        <button onClick={() => openModal(l)} className="mr-1 px-2 py-1 rounded text-xs" style={{ border: "1px solid var(--border)", background: "var(--card2)" }}>✏️</button>
-                        {!leads.find(x => x.id === l.id)?.contact && (
-                          <button onClick={() => handleConvert(l.id)} className="mr-1 px-2 py-1 rounded text-xs" style={{ border: "1px solid var(--border)", background: "var(--card2)" }} title="Convert to Customer">🔄</button>
-                        )}
-                        <button onClick={() => handleDelete(l.id)} className="px-2 py-1 rounded text-xs" style={{ border: "1px solid var(--border)", background: "var(--card2)" }}>🗑️</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={8} className="px-3 py-6 text-center text-xs" style={{ color: "var(--muted2)" }}>No leads found</td></tr>
-                )}
-              </tbody>
-            </table>
+        <>
+          {/* Mobile Cards */}
+          <div className="sm:hidden space-y-3">
+            {filtered.map(l => {
+              const st = statuses.find(s => s.id === l.status_id);
+              const stColor = STATUS_COLORS[l.status_id ?? 0] || "var(--muted2)";
+              return (
+                <div key={l.id} className="rounded-2xl p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 mr-3">
+                      <p className="font-bold text-base leading-tight">{l.name}</p>
+                      {l.contact && <p className="text-xs mt-0.5" style={{ color: "var(--muted2)" }}>👤 {l.contact}</p>}
+                      {l.phone && <p className="text-xs" style={{ color: "var(--muted2)" }}>📞 {l.phone}</p>}
+                    </div>
+                    {st && <span className="shrink-0 px-2 py-1 rounded-full text-xs font-bold" style={{ background: stColor + "22", color: stColor }}>{st.name}</span>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="rounded-xl p-2.5" style={{ background: "var(--card)" }}>
+                      <p className="text-xs mb-0.5" style={{ color: "var(--muted2)" }}>Opportunity</p>
+                      <p className="font-bold font-mono text-sm" style={{ color: "var(--accent)" }}>{cur} {fmt(l.opportunity_value)}</p>
+                    </div>
+                    <div className="rounded-xl p-2.5" style={{ background: "var(--card)" }}>
+                      <p className="text-xs mb-0.5" style={{ color: "var(--muted2)" }}>Pipeline ({pct(l.weight)})</p>
+                      <p className="font-bold font-mono text-sm" style={{ color: "var(--purple-c)" }}>{cur} {fmt(l.opportunity_weighted)}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mb-3">
+                    {(["contacted", "responded", "developed", "completed"] as const).map(f => (
+                      <div key={f} className="flex-1 text-center">
+                        <div className="w-6 h-6 mx-auto rounded-full flex items-center justify-center text-xs font-bold"
+                          style={{ background: l[f] ? "rgba(16,185,129,.2)" : "var(--card)", color: l[f] ? "var(--accent)" : "var(--muted2)", border: `1px solid ${l[f] ? "var(--accent)" : "var(--border)"}` }}>
+                          {l[f] ? "✓" : "○"}
+                        </div>
+                        <p className="text-[10px] mt-0.5 capitalize" style={{ color: "var(--muted2)" }}>{f.slice(0, 4)}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+                    <button onClick={() => openModal(l)} className="flex-1 py-2 rounded-xl text-xs font-semibold" style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}>✏️ Edit</button>
+                    <button onClick={() => handleConvert(l.id)} className="flex-1 py-2 rounded-xl text-xs font-semibold" style={{ background: "rgba(16,185,129,.1)", border: "1px solid rgba(16,185,129,.3)", color: "var(--accent)" }}>🔄 Convert</button>
+                    <button onClick={() => handleDelete(l.id)} className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(239,68,68,.1)", color: "var(--red-c)" }}>🗑️</button>
+                  </div>
+                </div>
+              );
+            })}
+            {filtered.length === 0 && (
+              <div className="text-center py-16 text-xs" style={{ color: "var(--muted2)" }}>No leads found</div>
+            )}
           </div>
-        </div>
+
+          {/* Desktop Table */}
+          <div className="hidden sm:block rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
+                    {["Date", "Name", "Status", "Product", "Opp", "Wt", "Pipeline", "Funnel", ""].map(h => (
+                      <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider" style={{ color: "var(--muted2)", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(l => {
+                    const st = statuses.find(s => s.id === l.status_id);
+                    const stColor = STATUS_COLORS[l.status_id ?? 0] || "var(--muted2)";
+                    return (
+                      <tr key={l.id} className="border-b hover:bg-[var(--card3)]" style={{ borderColor: "var(--border)" }}>
+                        <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--muted2)" }}>{fdate(l.lead_date)}</td>
+                        <td className="px-3 py-2 font-medium max-w-[160px] truncate">{l.name}</td>
+                        <td className="px-3 py-2">
+                          {st && <span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: stColor + "22", color: stColor }}>{st.name}</span>}
+                        </td>
+                        <td className="px-3 py-2 max-w-[120px]">
+                          {l.product_id && products.find(p => p.id === l.product_id) && (
+                            <span className="px-2 py-0.5 rounded text-xs truncate block" style={{ background: "rgba(139,92,246,.15)", color: "var(--purple-c)", border: "1px solid rgba(139,92,246,.3)" }}>
+                              {products.find(p => p.id === l.product_id)!.name}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 font-mono whitespace-nowrap">{cur} {fmt(l.opportunity_value)}</td>
+                        <td className="px-3 py-2">{pct(l.weight)}</td>
+                        <td className="px-3 py-2 font-mono whitespace-nowrap" style={{ color: "var(--purple-c)" }}>{cur} {fmt(l.opportunity_weighted)}</td>
+                        <td className="px-3 py-2">{dot(l.contacted)}{dot(l.responded)}{dot(l.developed)}{dot(l.completed)}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <button onClick={() => openModal(l)} className="mr-1 px-2 py-1 rounded text-xs" style={{ border: "1px solid var(--border)", background: "var(--card2)" }}>✏️</button>
+                          {!leads.find(x => x.id === l.id)?.contact && (
+                            <button onClick={() => handleConvert(l.id)} className="mr-1 px-2 py-1 rounded text-xs" style={{ border: "1px solid var(--border)", background: "var(--card2)" }} title="Convert to Customer">🔄</button>
+                          )}
+                          <button onClick={() => handleDelete(l.id)} className="px-2 py-1 rounded text-xs" style={{ border: "1px solid var(--border)", background: "var(--card2)" }}>🗑️</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filtered.length === 0 && (
+                    <tr><td colSpan={8} className="px-3 py-6 text-center text-xs" style={{ color: "var(--muted2)" }}>No leads found</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
       {/* KANBAN VIEW */}
@@ -398,8 +480,9 @@ export function LeadsClient({ leads, statuses, customers, products = [], currenc
 
       {/* MODAL */}
       {modal.open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 overflow-y-auto" style={{ background: "rgba(0,0,0,.6)", backdropFilter: "blur(4px)" }} onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
-          <div className="w-full max-w-lg rounded-xl" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-start sm:justify-center sm:p-4 sm:pt-16 overflow-y-auto" style={{ background: "rgba(0,0,0,.6)", backdropFilter: "blur(4px)" }} onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
+          <div className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-xl max-h-[92vh] overflow-y-auto" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+            <div className="sm:hidden w-10 h-1 rounded-full mx-auto mt-3 mb-1" style={{ background: "var(--border)" }} />
             <div className="flex justify-between items-center px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
               <h3 className="font-semibold">{modal.lead ? `Edit Lead #${modal.lead.id}` : "New Lead"}</h3>
               <button onClick={closeModal} className="text-lg" style={{ color: "var(--muted2)" }}>✕</button>
@@ -462,7 +545,7 @@ export function LeadsClient({ leads, statuses, customers, products = [], currenc
                 </div>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Weight (%)</label>
-                  <input name="weight" type="number" min="0" max="100" step="1" defaultValue={modal.lead?.weight || ""} className={inputStyle} style={inputCss} />
+                  <input name="weight" type="number" min="0" max="100" step="1" value={modalWeight} onChange={e => setModalWeight(Number(e.target.value))} className={inputStyle} style={inputCss} />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -476,10 +559,10 @@ export function LeadsClient({ leads, statuses, customers, products = [], currenc
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {(["contacted", "responded", "developed", "paid"] as const).map(f => (
+                {(["contacted", "responded", "developed", "completed"] as const).map(f => (
                   <div key={f} className="flex flex-col items-center gap-1">
                     <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted2)" }}>{f}</label>
-                    <select name={f} defaultValue={modal.lead ? String(modal.lead[f]) : "false"} className="w-full px-2 py-1.5 text-xs rounded border outline-none" style={inputCss}>
+                    <select name={f} value={String(funnelState[f])} onChange={e => handleFunnelChange(f, e.target.value === "true")} className="w-full px-2 py-1.5 text-xs rounded border outline-none" style={inputCss}>
                       <option value="false">No</option>
                       <option value="true">Yes</option>
                     </select>

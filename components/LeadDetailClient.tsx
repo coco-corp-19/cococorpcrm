@@ -9,7 +9,7 @@ type Lead = {
   id: number; name: string; phone: string | null; contact: string | null;
   lead_date: string | null; last_follow_up: string | null;
   opportunity_value: number | null; weight: number | null;
-  contacted: boolean; responded: boolean; developed: boolean; paid: boolean;
+  contacted: boolean; responded: boolean; developed: boolean; completed: boolean;
 };
 
 const ACTIVITY_TYPES = ["Call", "Email", "Meeting", "Task", "Note"];
@@ -68,7 +68,7 @@ export function LeadDetailClient({ lead, activities, currency, leadId }: {
           {dot(lead.contacted, "Contacted")}
           {dot(lead.responded, "Responded")}
           {dot(lead.developed, "Developed")}
-          {dot(lead.paid, "Paid")}
+          {dot(lead.completed, "Completed")}
         </div>
       </div>
 

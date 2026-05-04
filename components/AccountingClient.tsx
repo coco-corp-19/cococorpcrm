@@ -4,14 +4,15 @@ import { useState, useMemo } from "react";
 import { useToast } from "@/components/Toast";
 import {
   createBankTransaction,
-  updateBankTransaction,
   deleteBankTransaction,
-  toggleReconciled,
+  saveBankBalance,
+  deleteBankBalance,
+  createReconAdjustment,
 } from "@/server-actions/banking";
 
 type Invoice = { id: number; amount: number; status: string; transaction_date: string; customer_id: number };
 type Cost = { id: number; amount: number; transaction_date: string; cost_category_id: number | null; category_name: string };
-type Cashflow = { balance: number; account_id: number | null; record_date: string };
+type Cashflow = { id: number; balance: number; account_id: number | null; record_date: string; notes: string | null };
 type BankTxn = {
   id: number; account_id: number | null; txn_date: string; description: string;
   reference: string | null; debit: number; credit: number; balance: number | null;
@@ -84,87 +85,19 @@ function Total({ label, value, cur }: { label: string; value: number; cur: strin
   );
 }
 
-// ── Bank recon modal form ────────────────────────────────────────────────────
+// ── Shared input styles ──────────────────────────────────────────────────────
 const inp = "w-full px-3 py-2 rounded border text-sm outline-none focus:ring-1 focus:ring-[var(--accent)]";
 const inpS = { background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" } as const;
 
-function BankModal({ accounts, initial, onClose, onSave }: {
-  accounts: Account[];
-  initial?: BankTxn | null;
-  onClose: () => void;
-  onSave: (fd: FormData) => Promise<void>;
-}) {
-  const [busy, setBusy] = useState(false);
-
-  async function handle(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
-    try { await onSave(new FormData(e.currentTarget)); onClose(); }
-    finally { setBusy(false); }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto py-10 px-4"
-      style={{ background: "rgba(0,0,0,.55)", backdropFilter: "blur(4px)" }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-lg rounded-xl shadow-2xl" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-          <h2 className="text-base font-semibold">{initial ? "Edit Transaction" : "Add Bank Transaction"}</h2>
-          <button onClick={onClose} style={{ color: "var(--muted2)" }}>✕</button>
-        </div>
-        <form onSubmit={handle}>
-          <div className="p-5 space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Account</label>
-                <select name="account_id" defaultValue={initial?.account_id ?? ""} className={inp} style={inpS}>
-                  <option value="">— No account —</option>
-                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Date *</label>
-                <input name="txn_date" type="date" required defaultValue={initial?.txn_date ?? new Date().toISOString().slice(0, 10)} className={inp} style={inpS} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Reference</label>
-                <input name="reference" defaultValue={initial?.reference ?? ""} className={inp} style={inpS} placeholder="TXN-001" />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Description *</label>
-                <input name="description" required defaultValue={initial?.description ?? ""} className={inp} style={inpS} placeholder="Payment received / Supplier payment…" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Credit (Money In)</label>
-                <input name="credit" type="number" min={0} step={0.01} defaultValue={initial?.credit ?? 0} className={inp} style={inpS} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Debit (Money Out)</label>
-                <input name="debit" type="number" min={0} step={0.01} defaultValue={initial?.debit ?? 0} className={inp} style={inpS} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Running Balance</label>
-                <input name="balance" type="number" step={0.01} defaultValue={initial?.balance ?? ""} className={inp} style={inpS} placeholder="Optional" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Notes</label>
-                <input name="notes" defaultValue={initial?.notes ?? ""} className={inp} style={inpS} />
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-end gap-3 px-5 py-4 border-t" style={{ borderColor: "var(--border)" }}>
-            <button type="button" onClick={onClose}
-              className="px-4 py-2 rounded text-sm" style={{ background: "var(--card3)", color: "var(--muted)", border: "1px solid var(--border)" }}>Cancel</button>
-            <button type="submit" disabled={busy}
-              className="px-5 py-2 rounded text-sm font-semibold"
-              style={{ background: "var(--accent)", color: "#fff", opacity: busy ? .6 : 1 }}>
-              {busy ? "Saving…" : initial ? "Save Changes" : "Add Transaction"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+// ── System balance calculator ────────────────────────────────────────────────
+function calcSystemBalance(invoices: Invoice[], costs: Cost[], asOfDate: string): number {
+  const revenue = invoices
+    .filter(i => i.status === "Completed" && i.transaction_date <= asOfDate)
+    .reduce((s, i) => s + i.amount, 0);
+  const totalCosts = costs
+    .filter(c => c.transaction_date <= asOfDate)
+    .reduce((s, c) => s + c.amount, 0);
+  return revenue - totalCosts;
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
@@ -175,11 +108,10 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
   const [end, setEnd] = useState(defaultEnd);
 
   // Bank recon state
-  const [bankModal, setBankModal] = useState(false);
-  const [editTxn, setEditTxn] = useState<BankTxn | null>(null);
-  const [bankSearch, setBankSearch] = useState("");
-  const [reconFilter, setReconFilter] = useState<"" | "reconciled" | "unreconciled">("");
-  const [bankAccFilter, setBankAccFilter] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
+  const [resolveEntry, setResolveEntry] = useState<Cashflow | null>(null);
+  const [resolveBusy, setResolveBusy] = useState(false);
+  const [resolveType, setResolveType] = useState<"income" | "cost">("income");
 
   // Cashflow quick-entry state
   const [cfBusy, setCfBusy] = useState(false);
@@ -214,33 +146,11 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
     return { totalCash, retainedEarnings: totalRevenue - totalCosts, totalPending };
   }, [invoices, costs, cashflow]);
 
-  // ── Bank txn filtering ────────────────────────────────────────────────────
-  const filteredTxns = useMemo(() => {
-    return bankTxns
-      .filter(t => {
-        if (bankAccFilter && String(t.account_id) !== bankAccFilter) return false;
-        if (reconFilter === "reconciled" && !t.reconciled) return false;
-        if (reconFilter === "unreconciled" && t.reconciled) return false;
-        if (bankSearch) {
-          const q = bankSearch.toLowerCase();
-          return (t.description + (t.reference || "")).toLowerCase().includes(q);
-        }
-        return true;
-      })
-      .sort((a, b) => b.txn_date.localeCompare(a.txn_date));
-  }, [bankTxns, bankAccFilter, reconFilter, bankSearch]);
-
-  const bankTotals = useMemo(() => ({
-    credits: bankTxns.reduce((s, t) => s + t.credit, 0),
-    debits: bankTxns.reduce((s, t) => s + t.debit, 0),
-    unreconciled: bankTxns.filter(t => !t.reconciled).length,
-  }), [bankTxns]);
-
   // ── Cashflow monthly data ─────────────────────────────────────────────────
   const cashflowData = useMemo(() => {
     const months: Record<string, { credit: number; debit: number }> = {};
     bankTxns.forEach(t => {
-      const m = t.txn_date.slice(0, 7); // YYYY-MM
+      const m = t.txn_date.slice(0, 7);
       if (!months[m]) months[m] = { credit: 0, debit: 0 };
       months[m].credit += t.credit;
       months[m].debit += t.debit;
@@ -250,26 +160,25 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
       .map(([month, v]) => ({ month, ...v, net: v.credit - v.debit }));
   }, [bankTxns]);
 
+  const bankTotals = useMemo(() => ({
+    credits: bankTxns.reduce((s, t) => s + t.credit, 0),
+    debits: bankTxns.reduce((s, t) => s + t.debit, 0),
+  }), [bankTxns]);
+
   const maxCashflow = useMemo(() => Math.max(...cashflowData.map(d => Math.max(d.credit, d.debit)), 1), [cashflowData]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  async function handleAddTxn(fd: FormData) {
-    try { await createBankTransaction(fd); toast.success("Transaction added"); }
-    catch { toast.error("Failed to add transaction"); throw new Error(); }
-  }
-  async function handleEditTxn(fd: FormData) {
-    if (!editTxn) return;
-    try { await updateBankTransaction(editTxn.id, fd); toast.success("Transaction updated"); }
-    catch { toast.error("Failed to update transaction"); throw new Error(); }
-  }
-  async function handleDelete(id: number) {
-    if (!confirm("Delete this transaction?")) return;
+  async function handleDeleteTxn(id: number) {
+    if (!confirm("Delete this entry?")) return;
     try { await deleteBankTransaction(id); toast.success("Deleted"); }
     catch { toast.error("Failed to delete"); }
   }
-  async function handleToggle(id: number, current: boolean) {
-    try { await toggleReconciled(id, !current); }
-    catch { toast.error("Failed to update"); }
+
+  function handleResolveClick(entry: Cashflow) {
+    const sysBal = calcSystemBalance(invoices, costs, entry.record_date);
+    const variance = entry.balance - sysBal;
+    setResolveType(variance > 0 ? "income" : "cost");
+    setResolveEntry(entry);
   }
 
   const tabBtn = (t: typeof tab, label: string) => (
@@ -284,10 +193,10 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <h1 className="text-2xl font-semibold">Accounting</h1>
-        <div className="flex flex-wrap gap-2">
-          {tabBtn("is", "📊 Income Statement")}
-          {tabBtn("bs", "📋 Balance Sheet")}
-          {tabBtn("bank", "🏦 Bank Statement")}
+        <div className="flex gap-2 overflow-x-auto pb-0.5">
+          {tabBtn("is", "📊 IS")}
+          {tabBtn("bs", "📋 BS")}
+          {tabBtn("bank", "🏦 Bank")}
           {tabBtn("cashflow", "💸 Cashflow")}
         </div>
       </div>
@@ -357,111 +266,340 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
         </div>
       )}
 
-      {/* ── Bank Statement / Recon ───────────────────────────────────────── */}
-      {tab === "bank" && (
-        <div>
-          {/* KPIs */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-            {[
-              ["Total Credits (In)", bankTotals.credits, "var(--accent)"],
-              ["Total Debits (Out)", bankTotals.debits, "var(--red-c)"],
-              ["Unreconciled", bankTotals.unreconciled, "var(--amber-c)"],
-            ].map(([l, v, c]) => (
-              <div key={l as string} className="rounded-lg p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
-                <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>{l}</div>
-                <div className="text-xl font-bold font-mono" style={{ color: c as string }}>
-                  {typeof v === "number" && l !== "Unreconciled" ? `${currency} ${fmt(v)}` : String(v)}
+      {/* ── Bank Reconciliation ──────────────────────────────────────────── */}
+      {tab === "bank" && (() => {
+        const today = new Date().toISOString().slice(0, 10);
+        const sortedCf = [...cashflow].sort((a, b) => b.record_date.localeCompare(a.record_date));
+        const latest = sortedCf[0];
+        const sysBalToday = calcSystemBalance(invoices, costs, today);
+        const latestBankBal = latest?.balance ?? null;
+        const currentVariance = latestBankBal != null ? latestBankBal - sysBalToday : null;
+        const varColor = currentVariance === null ? "var(--muted2)"
+          : Math.abs(currentVariance) < 1 ? "var(--accent)"
+          : Math.abs(currentVariance) / Math.max(Math.abs(latestBankBal ?? 1), 1) < 0.05 ? "var(--amber-c)"
+          : "var(--red-c)";
+
+        return (
+          <div>
+            {/* KPIs */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+              <div className="rounded-lg p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+                <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Latest Bank Balance</div>
+                <div className="text-xl font-bold font-mono" style={{ color: "var(--accent)" }}>
+                  {latestBankBal != null ? `${currency} ${fmt(latestBankBal)}` : "—"}
+                </div>
+                {latest && <div className="text-xs mt-1" style={{ color: "var(--muted2)" }}>{fdateShort(latest.record_date)}</div>}
+              </div>
+              <div className="rounded-lg p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+                <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>System Balance (Today)</div>
+                <div className="text-xl font-bold font-mono" style={{ color: "var(--purple-c)" }}>
+                  {currency} {fmt(sysBalToday)}
+                </div>
+                <div className="text-xs mt-1" style={{ color: "var(--muted2)" }}>Completed revenue − costs</div>
+              </div>
+              <div className="rounded-lg p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+                <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Variance</div>
+                <div className="text-xl font-bold font-mono" style={{ color: varColor }}>
+                  {currentVariance === null ? "—"
+                    : Math.abs(currentVariance) < 1 ? "✓ Balanced"
+                    : `${currentVariance >= 0 ? "+" : ""}${currency} ${fmt(currentVariance)}`}
+                </div>
+                <div className="text-xs mt-1" style={{ color: "var(--muted2)" }}>
+                  {currentVariance === null ? "No snapshots yet"
+                    : Math.abs(currentVariance) < 1 ? "Records match bank"
+                    : currentVariance > 0 ? "Bank higher — possible unrecorded income"
+                    : "Bank lower — possible unrecorded cost"}
                 </div>
               </div>
-            ))}
-          </div>
-
-          {/* Controls */}
-          <div className="flex flex-wrap gap-3 items-center mb-4">
-            <input value={bankSearch} onChange={e => setBankSearch(e.target.value)} placeholder="Search transactions…"
-              className="px-3 py-2 text-sm rounded border outline-none flex-1 min-w-[160px]"
-              style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--foreground)" }} />
-            <select value={bankAccFilter} onChange={e => setBankAccFilter(e.target.value)}
-              className="px-3 py-2 text-sm rounded border outline-none"
-              style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }}>
-              <option value="">All Accounts</option>
-              {accounts.map(a => <option key={a.id} value={String(a.id)}>{a.name}</option>)}
-            </select>
-            <select value={reconFilter} onChange={e => setReconFilter(e.target.value as "" | "reconciled" | "unreconciled")}
-              className="px-3 py-2 text-sm rounded border outline-none"
-              style={{ background: "var(--card2)", borderColor: "var(--border)", color: "var(--muted)" }}>
-              <option value="">All</option>
-              <option value="reconciled">Reconciled</option>
-              <option value="unreconciled">Unreconciled</option>
-            </select>
-            <button onClick={() => { setEditTxn(null); setBankModal(true); }}
-              className="px-4 py-2 text-sm font-semibold rounded"
-              style={{ background: "var(--accent)", color: "#fff" }}>
-              + Add Transaction
-            </button>
-          </div>
-
-          {/* Table */}
-          <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-            <div className="overflow-x-auto" style={{ background: "var(--card2)" }}>
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
-                    {["Date", "Description", "Reference", "Credit (In)", "Debit (Out)", "Balance", "Reconciled", ""].map(h => (
-                      <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: "var(--muted2)" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTxns.map(t => (
-                    <tr key={t.id} className="border-b hover:bg-[var(--card3)] transition-colors"
-                      style={{ borderColor: "var(--border)", opacity: t.reconciled ? 0.65 : 1 }}>
-                      <td className="px-3 py-2.5 whitespace-nowrap" style={{ color: "var(--muted2)" }}>{fdateShort(t.txn_date)}</td>
-                      <td className="px-3 py-2.5 max-w-[180px] truncate font-medium">{t.description}</td>
-                      <td className="px-3 py-2.5 whitespace-nowrap" style={{ color: "var(--muted2)" }}>{t.reference || "—"}</td>
-                      <td className="px-3 py-2.5 font-mono whitespace-nowrap" style={{ color: "var(--accent)" }}>
-                        {t.credit > 0 ? `${currency} ${fmt(t.credit)}` : "—"}
-                      </td>
-                      <td className="px-3 py-2.5 font-mono whitespace-nowrap" style={{ color: "var(--red-c)" }}>
-                        {t.debit > 0 ? `${currency} ${fmt(t.debit)}` : "—"}
-                      </td>
-                      <td className="px-3 py-2.5 font-mono whitespace-nowrap" style={{ color: "var(--muted)" }}>
-                        {t.balance != null ? `${currency} ${fmt(t.balance)}` : "—"}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <button onClick={() => handleToggle(t.id, t.reconciled)}
-                          className="px-2 py-0.5 rounded text-xs font-semibold"
-                          style={{
-                            background: t.reconciled ? "rgba(16,185,129,.15)" : "rgba(245,158,11,.12)",
-                            color: t.reconciled ? "var(--accent)" : "var(--amber-c)",
-                            border: `1px solid ${t.reconciled ? "var(--accent)" : "var(--amber-c)"}`,
-                          }}>
-                          {t.reconciled ? "✓ Done" : "Pending"}
-                        </button>
-                      </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <div className="flex gap-1">
-                          <button onClick={() => { setEditTxn(t); setBankModal(true); }}
-                            className="px-2 py-1 rounded text-xs"
-                            style={{ border: "1px solid var(--border)", background: "var(--card)" }}>✏️</button>
-                          <button onClick={() => handleDelete(t.id)}
-                            className="px-2 py-1 rounded text-xs"
-                            style={{ border: "1px solid var(--border)", background: "var(--card)" }}>🗑️</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredTxns.length === 0 && (
-                    <tr><td colSpan={8} className="px-3 py-10 text-center text-sm" style={{ color: "var(--muted2)" }}>
-                      No transactions found. Add your first bank entry above.
-                    </td></tr>
-                  )}
-                </tbody>
-              </table>
             </div>
+
+            {/* Add Snapshot Form */}
+            <form
+              onSubmit={async e => {
+                e.preventDefault();
+                setAddBusy(true);
+                try {
+                  await saveBankBalance(new FormData(e.currentTarget));
+                  toast.success("Balance snapshot saved");
+                  (e.target as HTMLFormElement).reset();
+                } catch { toast.error("Failed to save snapshot"); }
+                finally { setAddBusy(false); }
+              }}
+              className="rounded-lg p-4 mb-5"
+              style={{ background: "var(--card2)", border: "1px solid var(--border)" }}
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Date *</label>
+                  <input name="record_date" type="date" required defaultValue={today}
+                    className="w-full px-3 py-2 rounded border text-sm outline-none"
+                    style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Account</label>
+                  <select name="account_id"
+                    className="w-full px-3 py-2 rounded border text-sm outline-none"
+                    style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--muted)" }}>
+                    <option value="">— Optional —</option>
+                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Actual Bank Balance *</label>
+                  <input name="balance" type="number" step="0.01" required placeholder="0.00"
+                    className="w-full px-3 py-2 rounded border text-sm outline-none"
+                    style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Notes</label>
+                  <input name="notes" placeholder="e.g. Month-end statement…"
+                    className="w-full px-3 py-2 rounded border text-sm outline-none"
+                    style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
+                </div>
+              </div>
+              <button type="submit" disabled={addBusy}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: "var(--accent)", color: "#fff", opacity: addBusy ? .6 : 1 }}>
+                {addBusy ? "Saving…" : "+ Save Snapshot"}
+              </button>
+            </form>
+
+            {/* Balance History */}
+            {sortedCf.length === 0 ? (
+              <div className="rounded-lg p-12 text-center" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+                <p className="text-sm font-semibold mb-1">No balance snapshots yet</p>
+                <p className="text-xs" style={{ color: "var(--muted2)" }}>Add your first bank balance above to start reconciling.</p>
+              </div>
+            ) : (
+              <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                {/* Mobile Cards */}
+                <div className="sm:hidden divide-y" style={{ borderColor: "var(--border)", background: "var(--card2)" }}>
+                  {sortedCf.map(entry => {
+                    const sysBal = calcSystemBalance(invoices, costs, entry.record_date);
+                    const variance = entry.balance - sysBal;
+                    const isBalanced = Math.abs(variance) < 1;
+                    const acc = accounts.find(a => a.id === entry.account_id);
+                    const vc = isBalanced ? "var(--accent)"
+                      : Math.abs(variance) / Math.max(Math.abs(entry.balance), 1) < 0.05 ? "var(--amber-c)"
+                      : "var(--red-c)";
+                    return (
+                      <div key={entry.id} className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-sm">{fdateShort(entry.record_date)}</span>
+                          <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-full" style={{ background: vc + "22", color: vc }}>
+                            {isBalanced ? "✓ Balanced" : `${variance >= 0 ? "+" : ""}${currency} ${fmt(variance)}`}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div className="rounded-xl p-2.5" style={{ background: "var(--card)" }}>
+                            <p className="text-xs mb-0.5" style={{ color: "var(--muted2)" }}>Bank Balance</p>
+                            <p className="font-bold font-mono text-sm" style={{ color: "var(--accent)" }}>{currency} {fmt(entry.balance)}</p>
+                          </div>
+                          <div className="rounded-xl p-2.5" style={{ background: "var(--card)" }}>
+                            <p className="text-xs mb-0.5" style={{ color: "var(--muted2)" }}>System Balance</p>
+                            <p className="font-bold font-mono text-sm" style={{ color: "var(--purple-c)" }}>{currency} {fmt(sysBal)}</p>
+                          </div>
+                        </div>
+                        {(entry.notes || acc) && (
+                          <p className="text-xs mb-3" style={{ color: "var(--muted2)" }}>
+                            {acc && <span>🏦 {acc.name} </span>}{entry.notes}
+                          </p>
+                        )}
+                        <div className="flex gap-2 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+                          {!isBalanced && (
+                            <button onClick={() => handleResolveClick(entry)}
+                              className="flex-1 py-2 rounded-xl text-xs font-semibold"
+                              style={{ background: "rgba(245,158,11,.12)", color: "var(--amber-c)", border: "1px solid var(--amber-c)" }}>
+                              Resolve Variance
+                            </button>
+                          )}
+                          <button
+                            onClick={async () => {
+                              if (!confirm("Delete this snapshot?")) return;
+                              try { await deleteBankBalance(entry.id); toast.success("Deleted"); }
+                              catch { toast.error("Failed to delete"); }
+                            }}
+                            className="w-10 h-10 rounded-xl flex items-center justify-center"
+                            style={{ border: "1px solid var(--border)", background: "var(--card)", color: "var(--muted2)" }}>🗑️</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Desktop Table */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}>
+                        {["Date", "Account", "Bank Balance", "System Balance", "Variance", "Notes", ""].map(h => (
+                          <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: "var(--muted2)" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedCf.map(entry => {
+                        const sysBal = calcSystemBalance(invoices, costs, entry.record_date);
+                        const variance = entry.balance - sysBal;
+                        const isBalanced = Math.abs(variance) < 1;
+                        const acc = accounts.find(a => a.id === entry.account_id);
+                        const vc = isBalanced ? "var(--accent)"
+                          : Math.abs(variance) / Math.max(Math.abs(entry.balance), 1) < 0.05 ? "var(--amber-c)"
+                          : "var(--red-c)";
+                        return (
+                          <tr key={entry.id} className="border-b hover:bg-[var(--card3)] transition-colors" style={{ borderColor: "var(--border)" }}>
+                            <td className="px-3 py-2.5 whitespace-nowrap" style={{ color: "var(--muted2)" }}>{fdateShort(entry.record_date)}</td>
+                            <td className="px-3 py-2.5" style={{ color: "var(--muted)" }}>{acc?.name || "—"}</td>
+                            <td className="px-3 py-2.5 font-mono font-semibold" style={{ color: "var(--accent)" }}>{currency} {fmt(entry.balance)}</td>
+                            <td className="px-3 py-2.5 font-mono" style={{ color: "var(--purple-c)" }}>{currency} {fmt(sysBal)}</td>
+                            <td className="px-3 py-2.5 font-mono font-semibold whitespace-nowrap" style={{ color: vc }}>
+                              {isBalanced ? "✓ Balanced" : `${variance >= 0 ? "+" : ""}${currency} ${fmt(variance)}`}
+                            </td>
+                            <td className="px-3 py-2.5 max-w-[160px] truncate" style={{ color: "var(--muted2)" }}>{entry.notes || "—"}</td>
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                              <div className="flex gap-1">
+                                {!isBalanced && (
+                                  <button onClick={() => handleResolveClick(entry)}
+                                    className="px-2 py-1 rounded text-xs font-semibold whitespace-nowrap"
+                                    style={{ background: "rgba(245,158,11,.12)", color: "var(--amber-c)", border: "1px solid var(--amber-c)" }}>
+                                    Resolve
+                                  </button>
+                                )}
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm("Delete this snapshot?")) return;
+                                    try { await deleteBankBalance(entry.id); toast.success("Deleted"); }
+                                    catch { toast.error("Failed to delete"); }
+                                  }}
+                                  className="px-2 py-1 rounded text-xs"
+                                  style={{ border: "1px solid var(--border)", background: "var(--card)" }}>🗑️</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-4 py-2.5 text-xs" style={{ background: "var(--card)", color: "var(--muted2)", borderTop: "1px solid var(--border)" }}>
+                  System Balance = sum of completed invoices − costs recorded up to that date
+                </div>
+              </div>
+            )}
+
+            {/* Resolve Modal */}
+            {resolveEntry && (() => {
+              const sysBal = calcSystemBalance(invoices, costs, resolveEntry.record_date);
+              const variance = resolveEntry.balance - sysBal;
+              const absVar = Math.abs(variance);
+              const isIncome = variance > 0;
+              return (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-start sm:justify-center overflow-y-auto sm:py-10 sm:px-4"
+                  style={{ background: "rgba(0,0,0,.55)", backdropFilter: "blur(4px)" }}
+                  onClick={e => { if (e.target === e.currentTarget) setResolveEntry(null); }}>
+                  <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-xl shadow-2xl max-h-[92vh] overflow-y-auto" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+                    <div className="sm:hidden w-10 h-1 rounded-full mx-auto mt-3 mb-1" style={{ background: "var(--border)" }} />
+                    <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+                      <h2 className="text-base font-semibold">Resolve Variance</h2>
+                      <button onClick={() => setResolveEntry(null)} style={{ color: "var(--muted2)" }}>✕</button>
+                    </div>
+                    <div className="p-5">
+                      {/* Summary */}
+                      <div className="grid grid-cols-3 gap-2 mb-4">
+                        {([
+                          ["Bank Balance", `${currency} ${fmt(resolveEntry.balance)}`, "var(--accent)"],
+                          ["System Balance", `${currency} ${fmt(sysBal)}`, "var(--purple-c)"],
+                          ["Variance", `${variance >= 0 ? "+" : ""}${currency} ${fmt(variance)}`, isIncome ? "var(--amber-c)" : "var(--red-c)"],
+                        ] as const).map(([l, v, c]) => (
+                          <div key={l} className="rounded p-2.5 text-center" style={{ background: "var(--card3)", border: "1px solid var(--border)" }}>
+                            <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>{l}</div>
+                            <div className="text-sm font-bold font-mono" style={{ color: c }}>{v}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <p className="text-xs mb-4 p-3 rounded" style={{
+                        background: isIncome ? "rgba(245,158,11,.1)" : "rgba(239,68,68,.1)",
+                        color: isIncome ? "var(--amber-c)" : "var(--red-c)",
+                        border: `1px solid ${isIncome ? "var(--amber-c)" : "var(--red-c)"}`,
+                      }}>
+                        {isIncome
+                          ? `Your bank shows ${currency} ${fmt(absVar)} more than your system records — likely unrecorded income.`
+                          : `Your bank shows ${currency} ${fmt(absVar)} less than your system records — likely an unrecorded cost.`}
+                      </p>
+
+                      <form onSubmit={async e => {
+                        e.preventDefault();
+                        setResolveBusy(true);
+                        try {
+                          await createReconAdjustment(new FormData(e.currentTarget));
+                          setResolveEntry(null);
+                          toast.success("Adjustment created — variance will update");
+                        } catch { toast.error("Failed to create adjustment"); }
+                        finally { setResolveBusy(false); }
+                      }}>
+                        <input type="hidden" name="type" value={resolveType} />
+
+                        {/* Adjustment type toggle */}
+                        <div className="mb-3">
+                          <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted2)" }}>Adjustment Type</label>
+                          <div className="flex rounded overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+                            {(["income", "cost"] as const).map(t => (
+                              <button key={t} type="button" onClick={() => setResolveType(t)}
+                                className="flex-1 py-2 text-xs font-semibold transition-colors"
+                                style={{
+                                  background: resolveType === t ? (t === "income" ? "var(--accent)" : "var(--red-c)") : "var(--background)",
+                                  color: resolveType === t ? "#fff" : "var(--muted)",
+                                }}>
+                                {t === "income" ? "▲ Add Income" : "▼ Add Cost"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Description</label>
+                            <input name="description"
+                              defaultValue={`Bank Reconciliation Adjustment — ${fdateShort(resolveEntry.record_date)}`}
+                              className={inp} style={inpS} />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Amount</label>
+                              <input name="amount" type="number" step="0.01" min="0.01"
+                                defaultValue={absVar.toFixed(2)}
+                                className={inp} style={inpS} />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Date</label>
+                              <input name="date" type="date"
+                                defaultValue={resolveEntry.record_date}
+                                className={inp} style={inpS} />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-4 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
+                          <button type="button" onClick={() => setResolveEntry(null)}
+                            className="flex-1 py-2 text-sm rounded border" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                            Cancel
+                          </button>
+                          <button type="submit" disabled={resolveBusy}
+                            className="flex-1 py-2 text-sm font-semibold rounded"
+                            style={{ background: "var(--accent)", color: "#fff", opacity: resolveBusy ? .6 : 1 }}>
+                            {resolveBusy ? "Creating…" : "Create Adjustment"}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Cashflow ─────────────────────────────────────────────────────── */}
       {tab === "cashflow" && (
@@ -484,15 +622,15 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
               } catch { toast.error("Failed to save entry"); }
               finally { setCfBusy(false); }
             }}
-            className="rounded-lg p-4 mb-5 flex flex-wrap gap-3 items-end"
+            className="rounded-lg p-4 mb-5"
             style={{ background: "var(--card2)", border: "1px solid var(--border)" }}
           >
-            <div>
+            <div className="mb-3">
               <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Type</label>
-              <div className="flex rounded overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+              <div className="flex rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
                 {(["in", "out"] as const).map(t => (
                   <button key={t} type="button" onClick={() => setCfType(t)}
-                    className="px-4 py-2 text-xs font-semibold transition-colors"
+                    className="flex-1 py-2.5 text-xs font-semibold transition-colors"
                     style={{
                       background: cfType === t ? (t === "in" ? "var(--accent)" : "var(--red-c)") : "var(--background)",
                       color: cfType === t ? "#fff" : "var(--muted)",
@@ -502,35 +640,37 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
                 ))}
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Date *</label>
-              <input name="txn_date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)}
-                className="px-3 py-2 rounded border text-sm outline-none"
-                style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
-            </div>
-            <div className="flex-1 min-w-[160px]">
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Description *</label>
-              <input name="description" required placeholder="e.g. Client payment, Rent, Salary…"
-                className="w-full px-3 py-2 rounded border text-sm outline-none"
-                style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
-            </div>
-            <div style={{ width: 140 }}>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Amount *</label>
-              <input name="amount" type="number" min={0.01} step={0.01} required placeholder="0.00"
-                className="w-full px-3 py-2 rounded border text-sm outline-none"
-                style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
-            </div>
-            <div style={{ width: 150 }}>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Account</label>
-              <select name="account_id" className="w-full px-3 py-2 rounded border text-sm outline-none"
-                style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--muted)" }}>
-                <option value="">— Optional —</option>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Date *</label>
+                <input name="txn_date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)}
+                  className="w-full px-3 py-2 rounded border text-sm outline-none"
+                  style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Description *</label>
+                <input name="description" required placeholder="e.g. Client payment, Rent…"
+                  className="w-full px-3 py-2 rounded border text-sm outline-none"
+                  style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Amount *</label>
+                <input name="amount" type="number" min={0.01} step={0.01} required placeholder="0.00"
+                  className="w-full px-3 py-2 rounded border text-sm outline-none"
+                  style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--foreground)" }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Account</label>
+                <select name="account_id" className="w-full px-3 py-2 rounded border text-sm outline-none"
+                  style={{ background: "var(--background)", borderColor: "var(--border)", color: "var(--muted)" }}>
+                  <option value="">— Optional —</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
             </div>
             <button type="submit" disabled={cfBusy}
-              className="px-5 py-2 rounded text-sm font-semibold"
-              style={{ background: cfType === "in" ? "var(--accent)" : "var(--red-c)", color: "#fff", opacity: cfBusy ? .6 : 1, whiteSpace: "nowrap" }}>
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-sm font-semibold"
+              style={{ background: cfType === "in" ? "var(--accent)" : "var(--red-c)", color: "#fff", opacity: cfBusy ? .6 : 1 }}>
               {cfBusy ? "Saving…" : `+ Add ${cfType === "in" ? "Income" : "Expense"}`}
             </button>
           </form>
@@ -626,7 +766,7 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
                       <span className="flex-1 truncate font-medium">{t.description}</span>
                       {t.credit > 0 && <span className="font-mono font-semibold" style={{ color: "var(--accent)" }}>+{currency} {fmt(t.credit)}</span>}
                       {t.debit > 0 && <span className="font-mono font-semibold" style={{ color: "var(--red-c)" }}>-{currency} {fmt(t.debit)}</span>}
-                      <button onClick={() => handleDelete(t.id)} className="px-1.5 py-0.5 rounded" style={{ color: "var(--muted2)", border: "1px solid var(--border)", background: "var(--card)" }}>✕</button>
+                      <button onClick={() => handleDeleteTxn(t.id)} className="px-1.5 py-0.5 rounded" style={{ color: "var(--muted2)", border: "1px solid var(--border)", background: "var(--card)" }}>✕</button>
                     </div>
                   ))}
                 </div>
@@ -634,16 +774,6 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
             </>
           )}
         </div>
-      )}
-
-      {/* ── Bank Modal ───────────────────────────────────────────────────── */}
-      {bankModal && (
-        <BankModal
-          accounts={accounts}
-          initial={editTxn}
-          onClose={() => { setBankModal(false); setEditTxn(null); }}
-          onSave={editTxn ? handleEditTxn : handleAddTxn}
-        />
       )}
     </div>
   );

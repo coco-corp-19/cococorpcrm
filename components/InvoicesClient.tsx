@@ -113,7 +113,7 @@ export function InvoicesClient({ invoices, customers, paymentTypes, products = [
       {/* KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         {[["Collected", totals.completed, "var(--accent)"], ["Pending", totals.pending, "var(--amber-c)"], ["Written Off", totals.writtenOff, "var(--red-c)"]].map(([l, v, c]) => (
-          <div key={l as string} className="rounded-lg p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+          <div key={l as string} className="rounded-xl p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
             <div className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>{l}</div>
             <div className="text-xl font-bold font-mono" style={{ color: c as string }}>{cur} {fmt(v as number)}</div>
           </div>
@@ -121,25 +121,74 @@ export function InvoicesClient({ invoices, customers, paymentTypes, products = [
       </div>
 
       {/* Controls */}
-      <div className="flex flex-wrap gap-3 items-center mb-4">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:items-center mb-4">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoices…"
-          className="px-3 py-2 text-sm rounded border outline-none flex-1 min-w-[160px]"
+          className="px-3 py-2 text-sm rounded-xl border outline-none flex-1 min-w-0"
           style={inputStyle} />
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="px-3 py-2 text-sm rounded border outline-none"
+          className="px-3 py-2 text-sm rounded-xl border outline-none"
           style={inputStyle}>
           <option value="">All Statuses</option>
           {["Completed", "Pending", "Written Off"].map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <button onClick={() => setModal(true)}
-          className="px-4 py-2 rounded text-sm font-semibold"
+          className="px-4 py-2.5 rounded-xl text-sm font-semibold"
           style={{ background: "var(--accent)", color: "#fff" }}>
           + Invoice
         </button>
       </div>
 
-      {/* Table */}
-      <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+      {/* Mobile Cards */}
+      <div className="sm:hidden space-y-3">
+        {filtered.map(inv => {
+          const cust = customers.find(c => c.id === inv.customer_id);
+          const col = STATUS_COLORS[inv.status] || "var(--muted2)";
+          const isOverdue = inv.due_date && inv.status === "Pending" && new Date(inv.due_date) < new Date();
+          return (
+            <div key={inv.id} className="rounded-2xl p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-bold text-base" style={{ color: "var(--accent)" }}>{inv.invoice_number || `#${inv.id}`}</span>
+                <select value={inv.status} onChange={e => handleStatusChange(inv.id, e.target.value)}
+                  className="px-3 py-1 rounded-full text-xs font-semibold border-0 outline-none cursor-pointer"
+                  style={{ background: col + "22", color: col }}>
+                  <option value="Pending">Pending</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Written Off">Written Off</option>
+                </select>
+              </div>
+              <div className="flex items-end justify-between mb-3">
+                <div>
+                  <p className="text-xs mb-0.5" style={{ color: "var(--muted2)" }}>Client</p>
+                  <p className="font-semibold text-sm">{cust?.name ?? `#${inv.customer_id}`}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs mb-0.5" style={{ color: "var(--muted2)" }}>Amount</p>
+                  <p className="text-xl font-bold font-mono">{cur} {fmt(inv.amount)}</p>
+                </div>
+              </div>
+              <div className="flex gap-4 text-xs mb-3" style={{ color: "var(--muted2)" }}>
+                <span>📅 {fdate(inv.transaction_date)}</span>
+                {inv.due_date && (
+                  <span style={{ color: isOverdue ? "var(--red-c)" : "var(--muted2)" }}>
+                    Due {fdate(inv.due_date)}{isOverdue ? " ⚠️" : ""}
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+                <button onClick={() => openEdit(inv)} className="flex-1 py-2 rounded-xl text-xs font-semibold" style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}>✏️ Edit</button>
+                <Link href={`/invoices/${inv.id}/print`} target="_blank" className="flex-1 py-2 rounded-xl text-xs font-semibold text-center" style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}>🖨️ Print</Link>
+                <button onClick={() => handleDelete(inv.id)} className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(239,68,68,.1)", color: "var(--red-c)" }}>✕</button>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="text-center py-16 text-sm" style={{ color: "var(--muted2)" }}>No invoices found</div>
+        )}
+      </div>
+
+      {/* Desktop Table */}
+      <div className="hidden sm:block rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
         <div className="overflow-x-auto" style={{ background: "var(--card2)" }}>
           <table className="w-full text-xs border-collapse">
             <thead>
@@ -195,12 +244,13 @@ export function InvoicesClient({ invoices, customers, paymentTypes, products = [
         </div>
       </div>
 
-      {/* Edit Modal */}
+      {/* Edit Modal — bottom sheet on mobile */}
       {editInvoice && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto py-10 px-4"
+        <div className="fixed inset-0 z-50 flex items-end sm:items-start sm:justify-center overflow-y-auto sm:py-10 sm:px-4"
           style={{ background: "rgba(0,0,0,.55)", backdropFilter: "blur(4px)" }}
           onClick={e => { if (e.target === e.currentTarget) setEditInvoice(null); }}>
-          <div className="w-full max-w-2xl rounded-xl shadow-2xl" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+          <div className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-xl shadow-2xl max-h-[92vh] overflow-y-auto" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+            <div className="sm:hidden w-10 h-1 rounded-full mx-auto mt-3 mb-1" style={{ background: "var(--border)" }} />
             <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
               <h2 className="text-base font-semibold">Edit Invoice — {editInvoice.invoice_number}</h2>
               <button onClick={() => setEditInvoice(null)} style={{ color: "var(--muted2)" }}>✕</button>
@@ -272,8 +322,8 @@ export function InvoicesClient({ invoices, customers, paymentTypes, products = [
                 <input type="hidden" name="amount" value={lineTotal} />
               </div>
               <div className="flex justify-end gap-3 px-5 py-4 border-t" style={{ borderColor: "var(--border)" }}>
-                <button type="button" onClick={() => setEditInvoice(null)} className="px-4 py-2 rounded text-sm" style={{ background: "var(--card3)", color: "var(--muted)", border: "1px solid var(--border)" }}>Cancel</button>
-                <button type="submit" disabled={busy} className="px-5 py-2 rounded text-sm font-semibold" style={{ background: "var(--accent)", color: "#fff", opacity: busy ? .6 : 1 }}>
+                <button type="button" onClick={() => setEditInvoice(null)} className="px-4 py-2 rounded-xl text-sm" style={{ background: "var(--card3)", color: "var(--muted)", border: "1px solid var(--border)" }}>Cancel</button>
+                <button type="submit" disabled={busy} className="px-5 py-2 rounded-xl text-sm font-semibold" style={{ background: "var(--accent)", color: "#fff", opacity: busy ? .6 : 1 }}>
                   {busy ? "Saving…" : "Update Invoice"}
                 </button>
               </div>
@@ -282,12 +332,13 @@ export function InvoicesClient({ invoices, customers, paymentTypes, products = [
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* Create Modal — bottom sheet on mobile */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto py-10 px-4"
+        <div className="fixed inset-0 z-50 flex items-end sm:items-start sm:justify-center overflow-y-auto sm:py-10 sm:px-4"
           style={{ background: "rgba(0,0,0,.55)", backdropFilter: "blur(4px)" }}
           onClick={e => { if (e.target === e.currentTarget) setModal(false); }}>
-          <div className="w-full max-w-2xl rounded-xl shadow-2xl" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+          <div className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-xl shadow-2xl max-h-[92vh] overflow-y-auto" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+            <div className="sm:hidden w-10 h-1 rounded-full mx-auto mt-3 mb-1" style={{ background: "var(--border)" }} />
             <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
               <h2 className="text-base font-semibold">Create Invoice</h2>
               <button onClick={() => setModal(false)} className="text-xl" style={{ color: "var(--muted2)", background: "none", border: "none", cursor: "pointer" }}>✕</button>
@@ -367,14 +418,13 @@ export function InvoicesClient({ invoices, customers, paymentTypes, products = [
                     Total: {cur} {fmt(lineTotal)}
                   </div>
                 </div>
-                {/* hidden amount fallback */}
                 <input type="hidden" name="amount" value={lineTotal} />
               </div>
               <div className="flex justify-end gap-3 px-5 py-4 border-t" style={{ borderColor: "var(--border)" }}>
                 <button type="button" onClick={() => setModal(false)}
-                  className="px-4 py-2 rounded text-sm" style={{ background: "var(--card3)", color: "var(--muted)", border: "1px solid var(--border)" }}>Cancel</button>
+                  className="px-4 py-2 rounded-xl text-sm" style={{ background: "var(--card3)", color: "var(--muted)", border: "1px solid var(--border)" }}>Cancel</button>
                 <button type="submit" disabled={busy}
-                  className="px-5 py-2 rounded text-sm font-semibold"
+                  className="px-5 py-2 rounded-xl text-sm font-semibold"
                   style={{ background: "var(--accent)", color: "#fff", opacity: busy ? .6 : 1 }}>
                   {busy ? "Saving…" : "Create Invoice"}
                 </button>

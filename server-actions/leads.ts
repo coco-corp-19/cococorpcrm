@@ -22,7 +22,7 @@ export async function createLead(formData: FormData) {
     contacted: formData.get("contacted") === "true",
     responded: formData.get("responded") === "true",
     developed: formData.get("developed") === "true",
-    paid: formData.get("paid") === "true",
+    completed: formData.get("completed") === "true",
     total_revenue: formData.get("total_revenue") || null,
     secured_revenue: formData.get("secured_revenue") || null,
   });
@@ -57,7 +57,7 @@ export async function updateLead(id: number, formData: FormData) {
     contacted: formData.get("contacted") === "true",
     responded: formData.get("responded") === "true",
     developed: formData.get("developed") === "true",
-    paid: formData.get("paid") === "true",
+    completed: formData.get("completed") === "true",
     product_id: productId ? Number(productId) : null,
     updated_at: new Date().toISOString(),
   }).eq("id", id);

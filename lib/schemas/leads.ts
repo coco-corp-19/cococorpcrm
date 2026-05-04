@@ -15,7 +15,7 @@ export const LeadSchema = z.object({
   contacted: z.boolean().default(false),
   responded: z.boolean().default(false),
   developed: z.boolean().default(false),
-  paid: z.boolean().default(false),
+  completed: z.boolean().default(false),
 });
 
 export type LeadInput = z.infer<typeof LeadSchema>;

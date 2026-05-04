@@ -13,7 +13,7 @@ export default async function DashboardPage() {
     { data: statuses },
     { data: org },
   ] = await Promise.all([
-    supabase.from("fact_leads").select("id, name, status_id, lead_date, opportunity_value, opportunity_weighted, weight, last_follow_up, contacted, responded, developed, paid, created_at").is("deleted_at", null),
+    supabase.from("fact_leads").select("id, name, status_id, lead_date, opportunity_value, opportunity_weighted, weight, last_follow_up, contacted, responded, developed, completed, created_at").is("deleted_at", null),
     supabase.from("fact_invoices").select("id, amount, status, transaction_date, customer_id, payment_type_id, due_date").is("deleted_at", null),
     supabase.from("fact_costs").select("id, amount, transaction_date, cost_category_id").is("deleted_at", null),
     supabase.from("fact_cashflow").select("id, balance, record_date, account_id").order("record_date", { ascending: false }),
@@ -129,7 +129,7 @@ export default async function DashboardPage() {
     Contacted: allLeads.filter(l => l.contacted).length,
     Responded: allLeads.filter(l => l.responded).length,
     Developed: allLeads.filter(l => l.developed).length,
-    Paid: allLeads.filter(l => l.paid).length,
+    Completed: allLeads.filter(l => l.completed).length,
     Won: wonLeads,
   };
 
