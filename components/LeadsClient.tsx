@@ -225,6 +225,7 @@ export function LeadsClient({ leads, statuses, customers, products = [], currenc
   const [statusFilter, setStatusFilter] = useState("");
   const [modal, setModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [busy, setBusy] = useState(false);
+  const [kanbanMode, setKanbanMode] = useState<"standard" | "pipeline">("standard");
   const dragId = useRef<number | null>(null);
 
   type FunnelState = { contacted: boolean; responded: boolean; developed: boolean; completed: boolean };
@@ -431,39 +432,111 @@ export function LeadsClient({ leads, statuses, customers, products = [], currenc
 
       {/* KANBAN VIEW */}
       {view === "kanban" && (
-        <div className="flex gap-3 overflow-x-auto pb-4">
-          {statuses.map(status => {
-            const colLeads = leads.filter(l => l.status_id === status.id);
-            const stColor = STATUS_COLORS[status.id] || "var(--muted2)";
-            return (
-              <div key={status.id} data-kcol={status.id}
-                className="shrink-0 rounded-lg w-64"
-                style={{ background: "var(--card)", border: "1px solid var(--border)", minHeight: 200 }}
-                onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.background = "rgba(16,185,129,.08)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--accent)"; }}
-                onDragLeave={e => { (e.currentTarget as HTMLElement).style.background = "var(--card)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}
-                onDrop={async e => { (e.currentTarget as HTMLElement).style.background = "var(--card)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; await handleStatusDrop(e, status.id); }}>
-                <div className="px-3 py-2.5 border-b flex justify-between items-center" style={{ borderColor: "var(--border)", borderTop: `3px solid ${stColor}` }}>
-                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: stColor }}>{status.name}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: "var(--card2)", color: "var(--muted2)" }}>{colLeads.length}</span>
-                </div>
-                <div className="p-2 space-y-2">
-                  {colLeads.map(l => (
-                    <div key={l.id} draggable
-                      onDragStart={() => { dragId.current = l.id; }}
-                      onDragEnd={() => { dragId.current = null; }}
-                      onClick={() => openModal(l)}
-                      className="rounded p-2.5 cursor-grab active:cursor-grabbing transition-colors"
-                      style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
-                      <p className="text-xs font-semibold truncate">{l.name}</p>
-                      <p className="text-xs font-mono mt-0.5" style={{ color: "var(--muted2)" }}>{cur} {fmt(l.opportunity_value)}</p>
-                      <p className="text-xs mt-0.5" style={{ color: "var(--muted2)" }}>{fdate(l.lead_date)}</p>
+        <>
+          {/* Mode toggle */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+              {([["standard", "Standard"], ["pipeline", "Pipeline"]] as const).map(([m, label]) => (
+                <button key={m} onClick={() => setKanbanMode(m)}
+                  className="px-3 py-1.5 text-xs font-semibold transition-colors"
+                  style={{ background: kanbanMode === m ? "var(--accent)" : "var(--card2)", color: kanbanMode === m ? "#fff" : "var(--muted)" }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs" style={{ color: "var(--muted2)" }}>
+              {kanbanMode === "pipeline" ? "Columns show weighted pipeline value" : "Columns show lead count"}
+            </span>
+          </div>
+
+          <div className="flex gap-3 overflow-x-auto pb-4">
+            {statuses.map(status => {
+              const colLeads = leads.filter(l => l.status_id === status.id);
+              const stColor = STATUS_COLORS[status.id] || "var(--muted2)";
+              const colWeighted = colLeads.reduce((s, l) => s + (l.opportunity_weighted ?? 0), 0);
+              const colOpp = colLeads.reduce((s, l) => s + (l.opportunity_value ?? 0), 0);
+
+              return (
+                <div key={status.id} data-kcol={status.id}
+                  className="shrink-0 rounded-lg w-64"
+                  style={{ background: "var(--card)", border: "1px solid var(--border)", minHeight: 200 }}
+                  onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.background = "rgba(16,185,129,.08)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--accent)"; }}
+                  onDragLeave={e => { (e.currentTarget as HTMLElement).style.background = "var(--card)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}
+                  onDrop={async e => { (e.currentTarget as HTMLElement).style.background = "var(--card)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; await handleStatusDrop(e, status.id); }}>
+
+                  {/* Column header */}
+                  {kanbanMode === "standard" ? (
+                    <div className="px-3 py-2.5 border-b flex justify-between items-center" style={{ borderColor: "var(--border)", borderTop: `3px solid ${stColor}` }}>
+                      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: stColor }}>{status.name}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: "var(--card2)", color: "var(--muted2)" }}>{colLeads.length}</span>
                     </div>
-                  ))}
+                  ) : (
+                    <div className="px-3 pt-3 pb-2.5 border-b" style={{ borderColor: "var(--border)", borderTop: `3px solid ${stColor}` }}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: stColor }}>{status.name}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: "var(--card2)", color: "var(--muted2)" }}>{colLeads.length}</span>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider" style={{ color: "var(--muted2)" }}>Weighted Pipeline</p>
+                        <p className="text-base font-bold font-mono" style={{ color: "var(--purple-c)" }}>{cur} {fmt(colWeighted)}</p>
+                        <p className="text-[10px] font-mono" style={{ color: "var(--muted2)" }}>of {cur} {fmt(colOpp)} total opp</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cards */}
+                  <div className="p-2 space-y-2">
+                    {colLeads.map(l => (
+                      <div key={l.id} draggable
+                        onDragStart={() => { dragId.current = l.id; }}
+                        onDragEnd={() => { dragId.current = null; }}
+                        onClick={() => openModal(l)}
+                        className="rounded-lg cursor-grab active:cursor-grabbing transition-colors"
+                        style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+
+                        {kanbanMode === "standard" ? (
+                          <div className="p-2.5">
+                            <p className="text-xs font-semibold truncate">{l.name}</p>
+                            <p className="text-xs font-mono mt-0.5" style={{ color: "var(--muted2)" }}>{cur} {fmt(l.opportunity_value)}</p>
+                            <p className="text-xs mt-0.5" style={{ color: "var(--muted2)" }}>{fdate(l.lead_date)}</p>
+                          </div>
+                        ) : (
+                          <div className="p-2.5">
+                            <p className="text-xs font-semibold truncate mb-1.5">{l.name}</p>
+                            <div className="flex items-end justify-between mb-2">
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider" style={{ color: "var(--muted2)" }}>Weighted</p>
+                                <p className="text-sm font-bold font-mono" style={{ color: "var(--purple-c)" }}>{cur} {fmt(l.opportunity_weighted)}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] uppercase tracking-wider" style={{ color: "var(--muted2)" }}>Opp × {pct(l.weight)}</p>
+                                <p className="text-xs font-mono" style={{ color: "var(--muted2)" }}>{cur} {fmt(l.opportunity_value)}</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-1">
+                              {(["contacted", "responded", "developed", "completed"] as const).map(f => (
+                                <div key={f} className="flex-1 text-center">
+                                  <div className="w-5 h-5 mx-auto rounded-full flex items-center justify-center text-[9px] font-bold"
+                                    style={{ background: l[f] ? "rgba(16,185,129,.2)" : "var(--card)", color: l[f] ? "var(--accent)" : "var(--muted2)", border: `1px solid ${l[f] ? "var(--accent)" : "var(--border)"}` }}>
+                                    {l[f] ? "✓" : "○"}
+                                  </div>
+                                  <p className="text-[9px] mt-0.5 capitalize" style={{ color: "var(--muted2)" }}>{f.slice(0, 4)}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {colLeads.length === 0 && (
+                      <p className="text-xs text-center py-4 italic" style={{ color: "var(--muted2)" }}>Empty</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* CARDS / TINDER VIEW */}
