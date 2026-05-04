@@ -270,25 +270,37 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
       {tab === "bank" && (() => {
         const today = new Date().toISOString().slice(0, 10);
         const sortedCf = [...cashflow].sort((a, b) => b.record_date.localeCompare(a.record_date));
-        const latest = sortedCf[0];
+
+        // Latest snapshot per account (sortedCf is desc so first hit per key = most recent)
+        const latestByAcct: Record<string, Cashflow> = {};
+        for (const entry of sortedCf) {
+          const key = String(entry.account_id ?? "unassigned");
+          if (!latestByAcct[key]) latestByAcct[key] = entry;
+        }
+        const acctEntries = Object.values(latestByAcct);
+        const totalBankBal = acctEntries.length > 0 ? acctEntries.reduce((s, e) => s + e.balance, 0) : null;
+        const latestSnapshotDate = acctEntries.length > 0 ? acctEntries.map(e => e.record_date).sort().reverse()[0] : null;
+        const multiAccount = acctEntries.length > 1;
+
         const sysBalToday = calcSystemBalance(invoices, costs, today);
-        const latestBankBal = latest?.balance ?? null;
-        const currentVariance = latestBankBal != null ? latestBankBal - sysBalToday : null;
+        const currentVariance = totalBankBal != null ? totalBankBal - sysBalToday : null;
         const varColor = currentVariance === null ? "var(--muted2)"
           : Math.abs(currentVariance) < 1 ? "var(--accent)"
-          : Math.abs(currentVariance) / Math.max(Math.abs(latestBankBal ?? 1), 1) < 0.05 ? "var(--amber-c)"
+          : Math.abs(currentVariance) / Math.max(Math.abs(totalBankBal ?? 1), 1) < 0.05 ? "var(--amber-c)"
           : "var(--red-c)";
 
         return (
           <div>
             {/* KPIs */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
               <div className="rounded-lg p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
-                <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>Latest Bank Balance</div>
-                <div className="text-xl font-bold font-mono" style={{ color: "var(--accent)" }}>
-                  {latestBankBal != null ? `${currency} ${fmt(latestBankBal)}` : "—"}
+                <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>
+                  Total Bank Balance{multiAccount ? ` (${acctEntries.length} accounts)` : ""}
                 </div>
-                {latest && <div className="text-xs mt-1" style={{ color: "var(--muted2)" }}>{fdateShort(latest.record_date)}</div>}
+                <div className="text-xl font-bold font-mono" style={{ color: "var(--accent)" }}>
+                  {totalBankBal != null ? `${currency} ${fmt(totalBankBal)}` : "—"}
+                </div>
+                {latestSnapshotDate && <div className="text-xs mt-1" style={{ color: "var(--muted2)" }}>latest: {fdateShort(latestSnapshotDate)}</div>}
               </div>
               <div className="rounded-lg p-4" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
                 <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--muted2)" }}>System Balance (Today)</div>
@@ -312,6 +324,24 @@ export function AccountingClient({ invoices, costs, cashflow, bankTxns, accounts
                 </div>
               </div>
             </div>
+
+            {/* Per-account breakdown when multiple accounts */}
+            {multiAccount && (
+              <div className="flex flex-wrap gap-2 mb-5">
+                {acctEntries.map(e => {
+                  const acc = accounts.find(a => a.id === e.account_id);
+                  return (
+                    <div key={e.id} className="rounded-lg px-3 py-2 flex items-center gap-3" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+                      <div>
+                        <p className="text-xs font-semibold" style={{ color: "var(--muted2)" }}>{acc?.name ?? "Unassigned"}</p>
+                        <p className="text-sm font-bold font-mono" style={{ color: "var(--accent)" }}>{currency} {fmt(e.balance)}</p>
+                      </div>
+                      <p className="text-xs" style={{ color: "var(--muted2)" }}>{fdateShort(e.record_date)}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Add Snapshot Form */}
             <form

@@ -22,25 +22,21 @@ export default async function DashboardPage() {
     supabase.from("organizations").select("currency, name").single(),
   ]);
 
-  // Bank transactions (new table — graceful fallback if not yet migrated)
-  let bankActual = 0;
-  let bankLastDate: string | null = null;
-  try {
-    const { data: bankTxns } = await supabase
-      .from("fact_bank_transactions")
-      .select("balance, txn_date, credit, debit")
-      .order("txn_date", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(200);
-    if (bankTxns && bankTxns.length > 0) {
-      // Use the latest balance field if available, else derive from net credits/debits
-      const latest = bankTxns[0];
-      bankActual = latest.balance != null
-        ? Number(latest.balance)
-        : bankTxns.reduce((s: number, t: { credit: number; debit: number }) => s + Number(t.credit || 0) - Number(t.debit || 0), 0);
-      bankLastDate = latest.txn_date;
+  // Bank balance: sum latest snapshot per account from fact_cashflow (matches Accounting → Bank Recon)
+  const cfData = cashflow || [];
+  const latestByAcct: Record<string, { balance: number; record_date: string }> = {};
+  for (const entry of cfData) {
+    const key = String((entry as { account_id?: number | null }).account_id ?? "unassigned");
+    const existing = latestByAcct[key];
+    if (!existing || entry.record_date > existing.record_date) {
+      latestByAcct[key] = { balance: Number(entry.balance), record_date: entry.record_date };
     }
-  } catch { /* table not yet created */ }
+  }
+  const acctValues = Object.values(latestByAcct);
+  const bankActual = acctValues.length > 0 ? acctValues.reduce((s, e) => s + e.balance, 0) : 0;
+  const bankLastDate: string | null = acctValues.length > 0
+    ? acctValues.map(e => e.record_date).sort().reverse()[0]
+    : null;
 
   const currency = org?.currency || "ZAR";
   const cur = currency === "ZAR" ? "R" : currency === "USD" ? "$" : currency === "EUR" ? "€" : "R";
@@ -79,12 +75,9 @@ export default async function DashboardPage() {
   const profit = revenue - totalOpex;
   const margin = revenue > 0 ? profit / revenue : 0;
 
-  // Cashflow — prefer bank transactions, fall back to legacy fact_cashflow
-  const latestCf = allCashflow[0];
-  const legacyCfBalance = latestCf ? Number(latestCf.balance) : 0;
-  const legacyCfDate = latestCf?.record_date || null;
-  const actualCashflow = bankActual > 0 ? bankActual : legacyCfBalance;
-  const lastCfDate = bankActual > 0 ? bankLastDate : legacyCfDate;
+  // Cashflow — sum of latest bank snapshot per account (matches Accounting → Bank Recon)
+  const actualCashflow = bankActual;
+  const lastCfDate = bankLastDate;
   const calcCashflow = revenue - totalOpex;
   const cfVariance = actualCashflow - calcCashflow;
 
