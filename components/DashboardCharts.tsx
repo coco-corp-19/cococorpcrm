@@ -28,6 +28,12 @@ type RawIncome = { id: number; amount: number | null; transaction_date: string |
 type RawCashflow = { id: number; balance: number; record_date: string; account_id: number | null };
 type Dim = { id: number; name: string };
 
+type CustomerAnalysis = {
+  counts: { total: number; active: number; inactive: number; churned: number; prospect: number };
+  totalLtv: number; avgLtv: number; totalPending: number; totalCac: number; withSales: number; noSales: number;
+  top: { id: number; name: string; status: string; ltv: number; pending: number; cac: number; invoiceCount: number; net: number }[];
+};
+
 type Props = {
   rawLeads: RawLead[]; rawInvoices: RawInvoice[]; rawCosts: RawCost[]; rawIncome: RawIncome[]; rawCashflow: RawCashflow[];
   customers: Dim[]; statuses: Dim[]; paymentTypes: Dim[]; costCategories: Dim[]; accounts: Dim[];
@@ -37,6 +43,7 @@ type Props = {
   /** Current-month range computed on the server so the default filter is
    *  identical during SSR and client hydration (no hydration mismatch). */
   defaultPeriod: { from: string; to: string };
+  customerAnalysis: CustomerAnalysis;
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -67,16 +74,18 @@ const ALL_SECTIONS: SectionDef[] = [
   { id: "monthly_table",    label: "Monthly Performance",     group: "block" },
   { id: "cashflow_recon",   label: "Cashflow Reconciliation", group: "block" },
   { id: "alerts",           label: "Alerts",                  group: "block" },
+  { id: "customer_analysis", label: "Customer Analysis",      group: "block" },
 ];
 const DEFAULT_SECTION_ORDER = ALL_SECTIONS.map(s => s.id);
 
 // ── Report tabs: organise the dashboard sections into focused views ──────────
-type DashTab = "overview" | "leads" | "revenue" | "cashflow";
+type DashTab = "overview" | "leads" | "revenue" | "cashflow" | "customers";
 const DASH_TABS: { key: DashTab; label: string }[] = [
-  { key: "overview", label: "Overview" },
-  { key: "leads",    label: "Leads"    },
-  { key: "revenue",  label: "Revenue"  },
-  { key: "cashflow", label: "Cashflow" },
+  { key: "overview",  label: "Overview" },
+  { key: "leads",     label: "Leads"    },
+  { key: "revenue",   label: "Revenue"  },
+  { key: "cashflow",  label: "Cashflow" },
+  { key: "customers", label: "Customer Analysis" },
 ];
 // Which tab(s) each section belongs to. A section may appear in several tabs.
 // Overview curates the highlights; the other tabs drill into a theme.
@@ -93,6 +102,7 @@ const SECTION_TABS: Record<string, DashTab[]> = {
   monthly_table:    ["revenue"],
   cashflow_recon:   ["cashflow"],
   alerts:           ["overview", "leads", "cashflow"],
+  customer_analysis: ["customers"],
 };
 const ALL_DASH_TABS: DashTab[] = DASH_TABS.map(t => t.key);
 // Unknown/custom sections fall back to showing on every tab so nothing hides unexpectedly.
@@ -989,11 +999,96 @@ function readLS<T>(key: string, fallback: T): T {
   try { const v = localStorage.getItem(key); return v ? (JSON.parse(v) as T) : fallback; } catch { return fallback; }
 }
 
+// ── Customer Analysis panel (dashboard "Customer Analysis" tab) ──────────────
+const CUST_STATUS_COLOR: Record<string, string> = {
+  Active: "var(--accent)", Prospect: "var(--cyan-c)", Inactive: "var(--amber-c)", Churned: "var(--red-c)",
+};
+function CustomerAnalysisPanel({ data, cur }: { data: CustomerAnalysis; cur: string }) {
+  const c = data.counts;
+  const statusRows: { label: string; n: number }[] = [
+    { label: "Active", n: c.active }, { label: "Prospect", n: c.prospect },
+    { label: "Inactive", n: c.inactive }, { label: "Churned", n: c.churned },
+  ].filter(r => r.n > 0);
+  const stat = (label: string, value: string, sub?: string, color = "var(--foreground)") => (
+    <div className="rounded-2xl p-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+      <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--muted2)" }}>{label}</p>
+      <p className="text-xl font-bold font-mono mt-1" style={{ color }}>{value}</p>
+      {sub && <p className="text-[10px] mt-0.5" style={{ color: "var(--muted2)" }}>{sub}</p>}
+    </div>
+  );
+  return (
+    <div className="rounded-2xl p-5" style={{ background: "var(--card2)", border: "1px solid var(--border)" }}>
+      <h3 className="text-sm font-bold mb-4" style={{ color: "var(--foreground)" }}>Customer Analysis</h3>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-5">
+        {stat("Total Customers", String(c.total), `${data.withSales} with sales · ${data.noSales} none`)}
+        {stat("Active", String(c.active), "receiving overhead", "var(--accent)")}
+        {stat("Churned", String(c.churned), "excluded from overhead", "var(--red-c)")}
+        {stat("Inactive / Prospect", String(c.inactive + c.prospect), `${c.inactive} inactive · ${c.prospect} prospect`, "var(--amber-c)")}
+        {stat("Total LTV", `${cur} ${fmt(data.totalLtv)}`, "completed revenue", "var(--accent)")}
+        {stat("Avg LTV", `${cur} ${fmt(data.avgLtv)}`, "per paying customer")}
+        {stat("Pending", `${cur} ${fmt(data.totalPending)}`, "invoiced, unpaid", "var(--amber-c)")}
+        {stat("Total CAC", `${cur} ${fmt(data.totalCac)}`, "costs attributed")}
+      </div>
+
+      {/* Status distribution bar */}
+      {c.total > 0 && (
+        <div className="mb-5">
+          <div className="flex h-3 rounded-full overflow-hidden" style={{ background: "var(--card3)" }}>
+            {statusRows.map(r => (
+              <div key={r.label} style={{ width: `${(r.n / c.total) * 100}%`, background: CUST_STATUS_COLOR[r.label] }} title={`${r.label}: ${r.n}`} />
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+            {statusRows.map(r => (
+              <span key={r.label} className="flex items-center gap-1.5 text-xs" style={{ color: "var(--muted2)" }}>
+                <span className="w-2.5 h-2.5 rounded-sm" style={{ background: CUST_STATUS_COLOR[r.label] }} />
+                {r.label} <span style={{ color: "var(--foreground)", fontWeight: 600 }}>{r.n}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Top customers by LTV */}
+      <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted2)" }}>Top Customers by Lifetime Value</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr style={{ borderBottom: "1px solid var(--border)" }}>
+              {["Customer", "Status", "LTV", "CAC", "Net", "Invoices"].map((h, i) => (
+                <th key={h} className={`py-2 font-semibold uppercase tracking-wider ${i === 0 ? "text-left pr-3" : "text-right px-3"}`} style={{ color: "var(--muted2)" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.top.length === 0 ? (
+              <tr><td colSpan={6} className="py-6 text-center" style={{ color: "var(--muted2)" }}>No customers yet.</td></tr>
+            ) : data.top.map(r => (
+              <tr key={r.id} className="border-b" style={{ borderColor: "var(--border)" }}>
+                <td className="py-2 pr-3 max-w-[200px] truncate" style={{ color: "var(--foreground)" }}>{r.name}</td>
+                <td className="py-2 px-3 text-right">
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: `${CUST_STATUS_COLOR[r.status] ?? "var(--muted2)"}22`, color: CUST_STATUS_COLOR[r.status] ?? "var(--muted2)" }}>{r.status}</span>
+                </td>
+                <td className="py-2 px-3 text-right font-mono" style={{ color: "var(--accent)" }}>{cur} {fmt(r.ltv)}</td>
+                <td className="py-2 px-3 text-right font-mono" style={{ color: "var(--muted)" }}>{cur} {fmt(r.cac)}</td>
+                <td className="py-2 px-3 text-right font-mono font-semibold" style={{ color: r.net >= 0 ? "var(--foreground)" : "var(--red-c)" }}>{cur} {fmt(r.net)}</td>
+                <td className="py-2 px-3 text-right font-mono" style={{ color: "var(--muted)" }}>{r.invoiceCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function DashboardCharts({
   rawLeads, rawInvoices, rawCosts, rawIncome, rawCashflow,
   customers, statuses, paymentTypes, costCategories, accounts,
   currency, orgName, orgId, bankBalance, bankLastDate, fiscalYearStart,
-  savedDashboardSettings, defaultPeriod,
+  savedDashboardSettings, defaultPeriod, customerAnalysis,
 }: Props) {
   const cur = currency === "ZAR" ? "R" : currency === "USD" ? "$" : currency === "EUR" ? "€" : "R";
 
@@ -1932,6 +2027,9 @@ export function DashboardCharts({
             );
             case "alerts": return (
               <AlertsPanel overdueInvoices={overdueInvoices} staleLeads={staleLeads} cur={cur} />
+            );
+            case "customer_analysis": return (
+              <CustomerAnalysisPanel data={customerAnalysis} cur={cur} />
             );
             case "cashflow_recon": return bankBalance > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
