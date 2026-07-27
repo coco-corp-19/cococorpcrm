@@ -13,6 +13,7 @@ export async function createCost(formData: FormData) {
   const costType = (formData.get("cost_type") as string) || "operational";
   const includeInPnlRaw = formData.get("include_in_pnl");
   const includeInPnl = includeInPnlRaw !== null ? includeInPnlRaw === "true" || includeInPnlRaw === "on" : costType === "operational";
+  const depYears = formData.get("depreciation_years");
   const parsed = CostSchema.parse({
     org_id: orgId,
     transaction_date: formData.get("transaction_date"),
@@ -26,12 +27,16 @@ export async function createCost(formData: FormData) {
     apportion_to_customers: apportion,
     cost_type: costType,
     include_in_pnl: includeInPnl,
+    // Depreciation terms only apply to capex assets.
+    depreciation_months: costType === "capex" && depYears ? Math.round(Number(depYears) * 12) : null,
+    residual_value: costType === "capex" ? Number(formData.get("residual_value") || 0) : 0,
   });
 
   const { error } = await supabase.from("fact_costs").insert(parsed);
   if (error) throw new Error(error.message);
   revalidatePath("/costs");
   revalidatePath("/dashboard");
+  revalidatePath("/accounting");
   revalidatePath("/customers/kpi");
 }
 
@@ -43,6 +48,7 @@ export async function updateCost(id: number, formData: FormData) {
   const costType = (formData.get("cost_type") as string) || "operational";
   const includeInPnlRaw = formData.get("include_in_pnl");
   const includeInPnl = includeInPnlRaw !== null ? includeInPnlRaw === "true" || includeInPnlRaw === "on" : costType === "operational";
+  const depYears = formData.get("depreciation_years");
   const { error } = await supabase.from("fact_costs").update({
     transaction_date: formData.get("transaction_date"),
     cost_details: formData.get("cost_details") || null,
@@ -54,12 +60,15 @@ export async function updateCost(id: number, formData: FormData) {
     apportion_to_customers: apportion,
     cost_type: costType,
     include_in_pnl: includeInPnl,
+    depreciation_months: costType === "capex" && depYears ? Math.round(Number(depYears) * 12) : null,
+    residual_value: costType === "capex" ? Number(formData.get("residual_value") || 0) : 0,
     ...(receiptUrl !== null ? { receipt_image_url: receiptUrl || null } : {}),
   }).eq("id", id);
 
   if (error) throw new Error(error.message);
   revalidatePath("/costs");
   revalidatePath("/dashboard");
+  revalidatePath("/accounting");
   revalidatePath("/customers/kpi");
 }
 

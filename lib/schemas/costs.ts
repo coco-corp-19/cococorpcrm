@@ -24,6 +24,10 @@ export const CostSchema = z.object({
   apportion_to_customers: z.coerce.boolean().default(false),
   cost_type: z.enum(["operational", "sadaqah", "zakat", "owner_draw", "capex", "personal"]).default("operational"),
   include_in_pnl: z.coerce.boolean().default(true),
+  // CapEx depreciation terms (straight-line over depreciation_months, from the
+  // transaction date, down to residual_value). Null months = held at cost.
+  depreciation_months: z.coerce.number().int().positive().optional().nullable(),
+  residual_value: z.coerce.number().min(0).optional().default(0),
 });
 
 export const CashflowSchema = z.object({

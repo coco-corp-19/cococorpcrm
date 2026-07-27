@@ -47,6 +47,7 @@ type Cost = {
   customer_id: number | null; customer_name: string | null;
   receipt_image_url: string | null; apportion_to_customers: boolean;
   cost_type: string; include_in_pnl: boolean;
+  depreciation_months: number | null; residual_value: number;
 };
 type Category = { id: number; name: string };
 type Account = { id: number; name: string };
@@ -696,6 +697,24 @@ export function CostsClient({ costs: initialCosts, categories, accounts, custome
                   </label>
                 </div>
               </div>
+              {/* CapEx depreciation terms */}
+              {editCostType === "capex" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl p-3" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Useful life (years)</label>
+                    <input name="depreciation_years" type="number" min="0" step="0.5" placeholder="e.g. 5"
+                      defaultValue={editCost.depreciation_months ? editCost.depreciation_months / 12 : ""} className={inputStyle} style={inputCss} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Residual value</label>
+                    <input name="residual_value" type="number" min="0" step="0.01" placeholder="0"
+                      defaultValue={editCost.residual_value || ""} className={inputStyle} style={inputCss} />
+                  </div>
+                  <p className="text-xs sm:col-span-2" style={{ color: "var(--muted2)" }}>
+                    Depreciated straight-line over its life, from the transaction date. Leave life blank to hold at cost.
+                  </p>
+                </div>
+              )}
               {/* Apportion toggle */}
               <div className="rounded-xl px-3 py-2.5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
                 <label className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -786,6 +805,8 @@ export function CostsClient({ costs: initialCosts, categories, accounts, custome
                   apportion_to_customers: apportion,
                   cost_type: newCostType,
                   include_in_pnl: newIncludeInPnl,
+                  depreciation_months: newCostType === "capex" && fd.get("depreciation_years") ? Math.round(Number(fd.get("depreciation_years")) * 12) : null,
+                  residual_value: newCostType === "capex" ? Number(fd.get("residual_value") || 0) : 0,
                 };
                 setModal(false);
                 setNewAmount(""); setNewDetails(""); setNewCategoryId(""); setNewImageUrl(""); setNewApportion(false); setNewCostType("operational"); setNewIncludeInPnl(true);
@@ -854,6 +875,22 @@ export function CostsClient({ costs: initialCosts, categories, accounts, custome
                   </label>
                 </div>
               </div>
+              {/* CapEx depreciation terms */}
+              {newCostType === "capex" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl p-3" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Useful life (years)</label>
+                    <input name="depreciation_years" type="number" min="0" step="0.5" placeholder="e.g. 5" className={inputStyle} style={inputCss} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Residual value</label>
+                    <input name="residual_value" type="number" min="0" step="0.01" placeholder="0" className={inputStyle} style={inputCss} />
+                  </div>
+                  <p className="text-xs sm:col-span-2" style={{ color: "var(--muted2)" }}>
+                    Capitalised to PPE and depreciated straight-line over its life, from the transaction date. Leave life blank to hold at cost.
+                  </p>
+                </div>
+              )}
               {/* Apportion toggle */}
               <div className="rounded-xl px-3 py-2.5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
                 <label className="flex items-center gap-2.5 cursor-pointer select-none">

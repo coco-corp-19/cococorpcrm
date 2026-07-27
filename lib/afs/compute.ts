@@ -5,9 +5,36 @@ import type { AutoSource } from "./catalog";
 export type AutoFigures = Record<AutoSource, number>;
 
 type Inv = { amount: number; status: string; transaction_date: string };
-type Cost = { amount: number; transaction_date: string; cost_type?: string };
+type Cost = { amount: number; transaction_date: string; cost_type?: string; depreciation_months?: number | null; residual_value?: number | null };
 type Income = { amount: number; transaction_date: string };
 type Cashflow = { balance: number; account_id: number | null; record_date: string };
+
+// Whole months elapsed between two YYYY-MM-DD dates (0 if `to` precedes `from`).
+function monthsBetween(fromISO: string, toISO: string): number {
+  const f = new Date(fromISO), t = new Date(toISO);
+  if (isNaN(f.getTime()) || isNaN(t.getTime())) return 0;
+  let m = (t.getFullYear() - f.getFullYear()) * 12 + (t.getMonth() - f.getMonth());
+  if (t.getDate() < f.getDate()) m -= 1;
+  return Math.max(0, m);
+}
+
+// Accumulated straight-line depreciation on a capex asset as at a date.
+function ppeAccumDep(c: Cost, asOf: string): number {
+  const months = c.depreciation_months ?? 0;
+  const base = Math.max(0, c.amount - (c.residual_value ?? 0));
+  if (months <= 0 || base <= 0 || c.transaction_date > asOf) return 0; // held at cost
+  const elapsed = Math.min(monthsBetween(c.transaction_date, asOf), months);
+  return (base / months) * elapsed;
+}
+// Net book value of a capex asset as at a date.
+function ppeNbvAt(c: Cost, asOf: string): number {
+  if (c.transaction_date > asOf) return 0;
+  return c.amount - ppeAccumDep(c, asOf);
+}
+function isoDayBefore(iso: string): string {
+  const d = new Date(iso); d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 const isCompleted = (s: string) => s === "Completed" || s === "Paid";
 const isPending = (s: string) => s === "Pending";
@@ -67,19 +94,22 @@ export function computeAutoFigures(opts: {
   // Accumulated R&D amortisation to date = gross capitalised − net book value.
   const accumAmort = intangiblesGross - opts.intangibles;
 
+  // ── PPE (purchased capex assets) — straight-line depreciation ──
+  const capexCosts = opts.costs.filter((c) => isCapex(c) && c.transaction_date <= fyEnd);
+  const ppe = capexCosts.reduce((s, c) => s + ppeNbvAt(c, fyEnd), 0); // net book value
+  const ppeAccumDepEnd = capexCosts.reduce((s, c) => s + ppeAccumDep(c, fyEnd), 0);
+  const ppeAccumDepStart = capexCosts.reduce((s, c) => s + ppeAccumDep(c, isoDayBefore(fyStart)), 0);
+  const depreciation = ppeAccumDepEnd - ppeAccumDepStart; // FY depreciation charge
+  const ppeAdditions = capexCosts.filter((c) => inFy(c.transaction_date)).reduce((s, c) => s + c.amount, 0);
+
   // ── Balance-sheet figures: cumulative "as at" year-end ──
   // Retained earnings excludes capex (asset, not expense) and carries the
-  // accumulated R&D amortisation charged to date.
+  // accumulated R&D amortisation + PPE depreciation charged to date.
   const retainedEarnings =
     opts.invoices.filter((i) => isEarned(i.status) && i.transaction_date <= fyEnd).reduce((s, i) => s + i.amount, 0) +
     opts.income.filter((r) => r.transaction_date <= fyEnd).reduce((s, r) => s + r.amount, 0) -
     opts.costs.filter((c) => c.transaction_date <= fyEnd && !isCapex(c)).reduce((s, c) => s + c.amount, 0) -
-    accumAmort;
-
-  // PPE = cumulative capex-tagged asset purchases as at year-end.
-  const ppe = opts.costs
-    .filter((c) => isCapex(c) && c.transaction_date <= fyEnd)
-    .reduce((s, c) => s + c.amount, 0);
+    accumAmort - ppeAccumDepEnd;
 
   const tradeReceivables = opts.invoices
     .filter((i) => isPending(i.status) && i.transaction_date <= fyEnd)
@@ -108,7 +138,7 @@ export function computeAutoFigures(opts: {
   const totalExpenses = fyCosts
     .filter((c) => !isDrawing(c) && !isSadaqah(c) && !isZakat(c) && !isCapex(c))
     .reduce((s, c) => s + c.amount, 0);
-  const profitForYear = revenue + otherIncome - totalExpenses - donations - zakat - amortisation;
+  const profitForYear = revenue + otherIncome - totalExpenses - donations - zakat - amortisation - depreciation;
 
   return {
     cash,
@@ -116,7 +146,9 @@ export function computeAutoFigures(opts: {
     intangibles: opts.intangibles,
     intangibles_gross: intangiblesGross,
     amortisation,
+    depreciation,
     ppe,
+    ppe_additions: ppeAdditions,
     retained_earnings: retainedEarnings,
     revenue,
     other_income: otherIncome,

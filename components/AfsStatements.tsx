@@ -123,9 +123,10 @@ export function AfsStatements({
     const donations = fc.filter(c => IS_SADAQAH(c.cost_type)).reduce((s, c) => s + c.amount, 0);
     const zakat = fc.filter(c => IS_ZAKAT(c.cost_type)).reduce((s, c) => s + c.amount, 0);
     const amort = autoByYear[year]?.amortisation ?? 0; // R&D amortisation charge
-    const pretax = revenue + otherIncome - totalOpex - donations - zakat - amort;
+    const dep = autoByYear[year]?.depreciation ?? 0;   // PPE depreciation charge
+    const pretax = revenue + otherIncome - totalOpex - donations - zakat - amort - dep;
     const tax = Math.max(pretax, 0) * (taxRate / 100);
-    return { revenue, otherIncome, byCat, totalOpex, donations, zakat, amort, pretax, tax, profit: pretax - tax };
+    return { revenue, otherIncome, byCat, totalOpex, donations, zakat, amort, dep, pretax, tax, profit: pretax - tax };
   };
 
   const isNow = useMemo(() => computeIS(finYear, basis), [finYear, basis, invoices, costs, income, taxRate, fiscalYearStart]);
@@ -175,10 +176,13 @@ export function AfsStatements({
     // a rise in payables/tax owed releases cash). Intangibles are non-cash, so
     // they (and their matching reserve) are excluded from investing.
     const pretax = computeIS(year, "accrual").pretax;
-    const amort = autoByYear[year]?.amortisation ?? 0; // non-cash, added back
+    // Depreciation + amortisation are non-cash — added back to operating.
+    const amort = (autoByYear[year]?.amortisation ?? 0) + (autoByYear[year]?.depreciation ?? 0);
     const wc = -d("trade_receivables") - d("inventory") + d("trade_payables") + d("vat_payable") + d("tax_payable");
     const cfo = pretax + amort + wc;
-    const invPpe = -d("ppe");
+    // PPE investing outflow = gross asset purchases in the year (cash paid),
+    // not the change in net book value (which nets off depreciation).
+    const invPpe = -(autoByYear[year]?.ppe_additions ?? 0);
     const invInv = -d("investments");
     const cfi = invPpe + invInv;
     const finLoans = d("long_term_loans") + d("short_term_loans");
@@ -575,6 +579,7 @@ export function AfsStatements({
             {subtotalRow("Total Operating Expenses", isNow.totalOpex, isPrev.totalOpex)}
             {(isNow.donations !== 0 || isPrev.donations !== 0) && plainRow("Donations (Sadaqah)", isNow.donations, isPrev.donations)}
             {(isNow.zakat !== 0 || isPrev.zakat !== 0) && plainRow("Zakat", isNow.zakat, isPrev.zakat)}
+            {(isNow.dep !== 0 || isPrev.dep !== 0) && plainRow("Depreciation (PPE)", isNow.dep, isPrev.dep)}
             {(isNow.amort !== 0 || isPrev.amort !== 0) && plainRow("Amortisation (Capitalised R&D)", isNow.amort, isPrev.amort)}
             {grandTotal("PROFIT BEFORE TAX", isNow.pretax, isPrev.pretax)}
             {plainRow(`Taxation (${taxRate}%)`, isNow.tax, isPrev.tax)}
@@ -597,7 +602,7 @@ export function AfsStatements({
           <>
             <div className="px-5 py-1.5 text-[11px] font-bold uppercase tracking-widest" style={{ background: "#eef", color: "#334" }}>Operating Activities</div>
             {plainRow("Profit before tax", cfNow.pretax, cfPrev.pretax)}
-            {(cfNow.amort !== 0 || cfPrev.amort !== 0) && plainRow("Add: Amortisation (non-cash)", cfNow.amort, cfPrev.amort)}
+            {(cfNow.amort !== 0 || cfPrev.amort !== 0) && plainRow("Add: Depreciation & Amortisation (non-cash)", cfNow.amort, cfPrev.amort)}
             {plainRow("Working capital movements", cfNow.wc, cfPrev.wc)}
             {subtotalRow("Cash from Operating Activities", cfNow.cfo, cfPrev.cfo)}
             <div className="px-5 py-1.5 text-[11px] font-bold uppercase tracking-widest" style={{ background: "#eef", color: "#334" }}>Investing Activities</div>
