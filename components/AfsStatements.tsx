@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2, Check, X, Printer } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { BS_SECTIONS, CASH_FLOW_SECTIONS, type StatementKey } from "@/lib/afs/catalog";
-import { finYearRange, type AutoFigures } from "@/lib/afs/compute";
+import { finYearRange, assetNbvAt, assetAccumDepAt, assetDisposalWriteoff, assetHeldAt, type AutoFigures } from "@/lib/afs/compute";
 import { buildStatement, type SavedAfsRow, type RenderLine } from "@/lib/afs/merge";
 import { saveAfsStatement, setTaxRate } from "@/server-actions/afs";
+import { DrillDownModal, type DrillRow } from "@/components/DrillDownModal";
+import { INCOME_TYPE_LABELS } from "@/lib/schemas/income";
 
 type IsInvoice = { amount: number; status: string; transaction_date: string };
-type IsCost = { amount: number; transaction_date: string; category_name: string; cost_type: string };
-type IsIncome = { amount: number; transaction_date: string };
+type IsCost = { amount: number; transaction_date: string; cost_details: string | null; category_name: string; cost_type: string; depreciation_months: number | null; residual_value: number; disposed_at: string | null };
+type IsIncome = { amount: number; transaction_date: string; description: string | null; income_type: string };
 
 type Props = {
   statement: StatementKey;
@@ -105,6 +107,7 @@ export function AfsStatements({
   const [rateInput, setRateInput] = useState(String(taxRate));
   const [basis, setBasis] = useState<"accrual" | "cash">("accrual");
   const [isMonthlyView, setIsMonthlyView] = useState(false);
+  const [drill, setDrill] = useState<{ title: string; subtitle?: string; rows: DrillRow[] } | null>(null);
 
   // Income statement computed for a financial year on the chosen basis.
   const computeIS = (year: number, b: "accrual" | "cash") => {
@@ -124,9 +127,10 @@ export function AfsStatements({
     const zakat = fc.filter(c => IS_ZAKAT(c.cost_type)).reduce((s, c) => s + c.amount, 0);
     const amort = autoByYear[year]?.amortisation ?? 0; // R&D amortisation charge
     const dep = autoByYear[year]?.depreciation ?? 0;   // PPE depreciation charge
-    const pretax = revenue + otherIncome - totalOpex - donations - zakat - amort - dep;
+    const disp = autoByYear[year]?.disposal_writeoff ?? 0; // book value of assets sold
+    const pretax = revenue + otherIncome - totalOpex - donations - zakat - amort - dep - disp;
     const tax = Math.max(pretax, 0) * (taxRate / 100);
-    return { revenue, otherIncome, byCat, totalOpex, donations, zakat, amort, dep, pretax, tax, profit: pretax - tax };
+    return { revenue, otherIncome, byCat, totalOpex, donations, zakat, amort, dep, disp, pretax, tax, profit: pretax - tax };
   };
 
   const isNow = useMemo(() => computeIS(finYear, basis), [finYear, basis, invoices, costs, income, taxRate, fiscalYearStart]);
@@ -176,8 +180,9 @@ export function AfsStatements({
     // a rise in payables/tax owed releases cash). Intangibles are non-cash, so
     // they (and their matching reserve) are excluded from investing.
     const pretax = computeIS(year, "accrual").pretax;
-    // Depreciation + amortisation are non-cash — added back to operating.
-    const amort = (autoByYear[year]?.amortisation ?? 0) + (autoByYear[year]?.depreciation ?? 0);
+    // Depreciation, amortisation and disposal write-offs are non-cash — added
+    // back to operating (sale proceeds are captured as Other Income in profit).
+    const amort = (autoByYear[year]?.amortisation ?? 0) + (autoByYear[year]?.depreciation ?? 0) + (autoByYear[year]?.disposal_writeoff ?? 0);
     const wc = -d("trade_receivables") - d("inventory") + d("trade_payables") + d("vat_payable") + d("tax_payable");
     const cfo = pretax + amort + wc;
     // PPE investing outflow = gross asset purchases in the year (cash paid),
@@ -340,16 +345,25 @@ export function AfsStatements({
               className="w-32 text-sm px-2 py-1 rounded border font-mono text-right" style={{ borderColor: "#ddd", color: "#111" }} />
             <button onClick={() => removeLine(idx)} className="ml-2 w-7 h-7 flex items-center justify-center rounded" style={{ color: "#ef4444" }}><Trash2 size={13} /></button>
           </>
-        ) : (
+        ) : (() => {
+          const bd = bsDrillFor(line.line_key);
+          const clickable = !!bd && bd.rows.length > 0;
+          return (
           <>
             <span className="flex-1 text-sm" style={{ color: "#333" }}>
-              {line.label}
+              {clickable ? (
+                <button onClick={() => openDrill(bd!.title, bd!.rows)}
+                  className="text-left print:no-underline" style={{ color: "#111", borderBottom: "1px dotted #9ca3af", cursor: "pointer" }}>
+                  {line.label} <span className="print:hidden" style={{ color: "var(--accent)", fontSize: 10 }}>▸</span>
+                </button>
+              ) : line.label}
               {line.overridden && !line.is_custom && <span className="ml-2 text-xs" style={{ color: "#f59e0b" }}>edited</span>}
             </span>
             <span className="font-mono text-sm" style={{ minWidth: 130, textAlign: "right", color: "#111" }}>{fmtMoney(line.amount, currency)}</span>
             <span className="font-mono text-sm" style={{ minWidth: 130, textAlign: "right", color: "#999" }}>{fmtMoney(prior, currency)}</span>
           </>
-        )}
+          );
+        })()}
       </div>
     );
   }
@@ -389,10 +403,18 @@ export function AfsStatements({
     );
   }
 
-  function plainRow(label: string, value: number, prior: number, indent = false, k?: string) {
+  function plainRow(label: string, value: number, prior: number, indent = false, k?: string, drill?: { title: string; rows: DrillRow[] }) {
+    const clickable = !!drill && drill.rows.length > 0;
     return (
       <div key={k} className="flex items-center py-2 border-b" style={{ paddingLeft: indent ? 40 : 28, paddingRight: 20, borderColor: "#eee" }}>
-        <span className="flex-1 text-sm" style={{ color: "#333" }}>{label}</span>
+        <span className="flex-1 text-sm" style={{ color: "#333" }}>
+          {clickable ? (
+            <button onClick={() => openDrill(drill!.title, drill!.rows)}
+              className="text-left print:no-underline" style={{ color: "#111", borderBottom: "1px dotted #9ca3af", cursor: "pointer" }}>
+              {label} <span className="print:hidden" style={{ color: "var(--accent)", fontSize: 10 }}>▸</span>
+            </button>
+          ) : label}
+        </span>
         <span className="font-mono text-sm" style={{ minWidth: 130, textAlign: "right", color: "#111" }}>{fmtMoney(value, currency)}</span>
         <span className="font-mono text-sm" style={{ minWidth: 130, textAlign: "right", color: "#999" }}>{fmtMoney(prior, currency)}</span>
       </div>
@@ -413,6 +435,32 @@ export function AfsStatements({
 
   const priorAssets = priorLines.filter(l => BS_SECTIONS.some(s => s.side === "assets" && s.key === l.section)).reduce((s, l) => s + l.amount, 0);
   const priorEqLiab = priorLines.filter(l => BS_SECTIONS.some(s => s.side === "eqliab" && s.key === l.section)).reduce((s, l) => s + l.amount, 0);
+
+  // ── Drill-down data: the underlying records behind each aggregated figure ──
+  const dw = finYearRange(finYear, fiscalYearStart);
+  const dayBeforeStr = (iso: string) => { const d = new Date(iso); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const inFyD = (d: string) => !!d && d >= dw.start && d <= dw.end;
+  const earnedD = (s: string) => basis === "accrual" ? (s === "Completed" || s === "Paid" || s === "Pending") : (s === "Completed" || s === "Paid");
+  const capexAll = costs.filter(c => c.cost_type === "capex" && c.transaction_date <= dw.end);
+
+  const revenueRows: DrillRow[] = invoices.filter(i => earnedD(i.status) && inFyD(i.transaction_date)).map(i => ({ date: i.transaction_date, label: "Invoice", sub: i.status, amount: i.amount }));
+  const otherIncomeRows: DrillRow[] = income.filter(r => inFyD(r.transaction_date)).map(r => ({ date: r.transaction_date, label: r.description || INCOME_TYPE_LABELS[r.income_type] || "Other income", sub: INCOME_TYPE_LABELS[r.income_type] ?? r.income_type, amount: r.amount }));
+  const catRows = (cat: string): DrillRow[] => costs.filter(c => inFyD(c.transaction_date) && !IS_DRAW(c.cost_type) && !IS_SADAQAH(c.cost_type) && !IS_ZAKAT(c.cost_type) && !IS_CAPEX(c.cost_type) && (c.category_name || "Other") === cat).map(c => ({ date: c.transaction_date, label: c.cost_details || cat, amount: c.amount }));
+  const typeRows = (pred: (t: string) => boolean): DrillRow[] => costs.filter(c => inFyD(c.transaction_date) && pred(c.cost_type)).map(c => ({ date: c.transaction_date, label: c.cost_details || c.category_name || "—", amount: c.amount }));
+  const depRows: DrillRow[] = capexAll.flatMap(c => {
+    const charge = assetAccumDepAt(c, dw.end) - assetAccumDepAt(c, dayBeforeStr(dw.start));
+    return charge > 0.005 ? [{ date: c.transaction_date, label: c.cost_details || "Asset", sub: "depreciation this year", amount: charge }] : [];
+  });
+  const disposalRows: DrillRow[] = capexAll.filter(c => c.disposed_at && inFyD(c.disposed_at)).map(c => ({ date: c.disposed_at, label: c.cost_details || "Asset", sub: "carrying value written off on sale", amount: assetDisposalWriteoff(c) }));
+  const ppeRows: DrillRow[] = capexAll.filter(c => assetHeldAt(c, dw.end)).map(c => ({ date: c.transaction_date, label: c.cost_details || "Asset", sub: c.disposed_at ? "" : (assetAccumDepAt(c, dw.end) > 0.005 ? `cost ${fmtMoney(c.amount, currency)} · dep ${fmtMoney(-assetAccumDepAt(c, dw.end), currency)}` : "held at cost"), amount: assetNbvAt(c, dw.end) })).filter(r => Math.abs(r.amount) > 0.005);
+  const receivableRows: DrillRow[] = invoices.filter(i => i.status === "Pending" && i.transaction_date <= dw.end).map(i => ({ date: i.transaction_date, label: "Invoice", sub: "unpaid", amount: i.amount }));
+
+  const openDrill = (title: string, rows: DrillRow[]) => setDrill({ title, subtitle: `FY${finYear} · ${rows.length} record${rows.length === 1 ? "" : "s"}`, rows });
+  function bsDrillFor(lk: string | null): { title: string; rows: DrillRow[] } | null {
+    if (lk === "ppe") return { title: "Property, Plant & Equipment", rows: ppeRows };
+    if (lk === "trade_receivables") return { title: "Trade & Other Receivables", rows: receivableRows };
+    return null;
+  }
 
   return (
     <div>
@@ -570,16 +618,17 @@ export function AfsStatements({
         ) : isIncome ? (
           <>
             <div className="px-5 py-1.5 text-[11px] font-bold uppercase tracking-widest" style={{ background: "#eef", color: "#334" }}>Income</div>
-            {plainRow("Revenue", isNow.revenue, isPrev.revenue)}
-            {(isNow.otherIncome !== 0 || isPrev.otherIncome !== 0) && plainRow("Other Income", isNow.otherIncome, isPrev.otherIncome, true)}
+            {plainRow("Revenue", isNow.revenue, isPrev.revenue, false, "is-rev", { title: "Revenue", rows: revenueRows })}
+            {(isNow.otherIncome !== 0 || isPrev.otherIncome !== 0) && plainRow("Other Income", isNow.otherIncome, isPrev.otherIncome, true, "is-oi", { title: "Other Income", rows: otherIncomeRows })}
             {subtotalRow("Total Income", isNow.revenue + isNow.otherIncome, isPrev.revenue + isPrev.otherIncome)}
             <div className="px-5 py-1.5 text-[11px] font-bold uppercase tracking-widest" style={{ background: "#eef", color: "#334" }}>Operating Expenses</div>
             {isCatNames.length === 0 && <div className="px-7 py-2 text-xs italic border-b" style={{ color: "#bbb", borderColor: "#eee" }}>None</div>}
-            {isCatNames.map(cat => plainRow(cat, isNow.byCat[cat] || 0, isPrev.byCat[cat] || 0, true, cat))}
+            {isCatNames.map(cat => plainRow(cat, isNow.byCat[cat] || 0, isPrev.byCat[cat] || 0, true, cat, { title: cat, rows: catRows(cat) }))}
             {subtotalRow("Total Operating Expenses", isNow.totalOpex, isPrev.totalOpex)}
-            {(isNow.donations !== 0 || isPrev.donations !== 0) && plainRow("Donations (Sadaqah)", isNow.donations, isPrev.donations)}
-            {(isNow.zakat !== 0 || isPrev.zakat !== 0) && plainRow("Zakat", isNow.zakat, isPrev.zakat)}
-            {(isNow.dep !== 0 || isPrev.dep !== 0) && plainRow("Depreciation (PPE)", isNow.dep, isPrev.dep)}
+            {(isNow.donations !== 0 || isPrev.donations !== 0) && plainRow("Donations (Sadaqah)", isNow.donations, isPrev.donations, false, "is-don", { title: "Donations (Sadaqah)", rows: typeRows(IS_SADAQAH) })}
+            {(isNow.zakat !== 0 || isPrev.zakat !== 0) && plainRow("Zakat", isNow.zakat, isPrev.zakat, false, "is-zak", { title: "Zakat", rows: typeRows(IS_ZAKAT) })}
+            {(isNow.dep !== 0 || isPrev.dep !== 0) && plainRow("Depreciation (PPE)", isNow.dep, isPrev.dep, false, "is-dep", { title: "Depreciation (PPE)", rows: depRows })}
+            {(isNow.disp !== 0 || isPrev.disp !== 0) && plainRow("Carrying value of assets sold", isNow.disp, isPrev.disp, false, "is-disp", { title: "Assets sold — carrying value written off", rows: disposalRows })}
             {(isNow.amort !== 0 || isPrev.amort !== 0) && plainRow("Amortisation (Capitalised R&D)", isNow.amort, isPrev.amort)}
             {grandTotal("PROFIT BEFORE TAX", isNow.pretax, isPrev.pretax)}
             {plainRow(`Taxation (${taxRate}%)`, isNow.tax, isPrev.tax)}
@@ -653,6 +702,10 @@ export function AfsStatements({
           </div>
         </div>
       </div>
+
+      {drill && (
+        <DrillDownModal title={drill.title} subtitle={drill.subtitle} rows={drill.rows} currency={currency} onClose={() => setDrill(null)} />
+      )}
     </div>
   );
 }

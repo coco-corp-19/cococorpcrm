@@ -5,7 +5,7 @@ import type { AutoSource } from "./catalog";
 export type AutoFigures = Record<AutoSource, number>;
 
 type Inv = { amount: number; status: string; transaction_date: string };
-type Cost = { amount: number; transaction_date: string; cost_type?: string; depreciation_months?: number | null; residual_value?: number | null };
+type Cost = { amount: number; transaction_date: string; cost_type?: string; depreciation_months?: number | null; residual_value?: number | null; disposed_at?: string | null };
 type Income = { amount: number; transaction_date: string };
 type Cashflow = { balance: number; account_id: number | null; record_date: string };
 
@@ -18,18 +18,34 @@ function monthsBetween(fromISO: string, toISO: string): number {
   return Math.max(0, m);
 }
 
-// Accumulated straight-line depreciation on a capex asset as at a date.
-function ppeAccumDep(c: Cost, asOf: string): number {
+// Depreciation stops on the disposal date — beyond it the asset is off the
+// books, so cap the "as at" date used for depreciation at the disposal date.
+function depAsOf(c: Cost, asOf: string): string {
+  return c.disposed_at && c.disposed_at < asOf ? c.disposed_at : asOf;
+}
+// Is the asset still on the balance sheet at `asOf` (not yet disposed)?
+export function assetHeldAt(c: Cost, asOf: string): boolean {
+  return !c.disposed_at || c.disposed_at > asOf;
+}
+// Accumulated straight-line depreciation on a capex asset as at a date
+// (depreciation ceases at disposal).
+export function assetAccumDepAt(c: Cost, asOf: string): number {
+  const at = depAsOf(c, asOf);
   const months = c.depreciation_months ?? 0;
   const base = Math.max(0, c.amount - (c.residual_value ?? 0));
-  if (months <= 0 || base <= 0 || c.transaction_date > asOf) return 0; // held at cost
-  const elapsed = Math.min(monthsBetween(c.transaction_date, asOf), months);
+  if (months <= 0 || base <= 0 || c.transaction_date > at) return 0; // held at cost
+  const elapsed = Math.min(monthsBetween(c.transaction_date, at), months);
   return (base / months) * elapsed;
 }
-// Net book value of a capex asset as at a date.
-function ppeNbvAt(c: Cost, asOf: string): number {
-  if (c.transaction_date > asOf) return 0;
-  return c.amount - ppeAccumDep(c, asOf);
+// Net book value of a capex asset as at a date — zero once disposed.
+export function assetNbvAt(c: Cost, asOf: string): number {
+  if (c.transaction_date > asOf || !assetHeldAt(c, asOf)) return 0;
+  return c.amount - assetAccumDepAt(c, asOf);
+}
+// Net book value written off on disposal (cost less depreciation to that date).
+export function assetDisposalWriteoff(c: Cost): number {
+  if (!c.disposed_at) return 0;
+  return c.amount - assetAccumDepAt(c, c.disposed_at);
 }
 function isoDayBefore(iso: string): string {
   const d = new Date(iso); d.setDate(d.getDate() - 1);
@@ -96,20 +112,29 @@ export function computeAutoFigures(opts: {
 
   // ── PPE (purchased capex assets) — straight-line depreciation ──
   const capexCosts = opts.costs.filter((c) => isCapex(c) && c.transaction_date <= fyEnd);
-  const ppe = capexCosts.reduce((s, c) => s + ppeNbvAt(c, fyEnd), 0); // net book value
-  const ppeAccumDepEnd = capexCosts.reduce((s, c) => s + ppeAccumDep(c, fyEnd), 0);
-  const ppeAccumDepStart = capexCosts.reduce((s, c) => s + ppeAccumDep(c, isoDayBefore(fyStart)), 0);
+  const ppe = capexCosts.reduce((s, c) => s + assetNbvAt(c, fyEnd), 0); // net book value (disposed = 0)
+  const ppeAccumDepEnd = capexCosts.reduce((s, c) => s + assetAccumDepAt(c, fyEnd), 0);
+  const ppeAccumDepStart = capexCosts.reduce((s, c) => s + assetAccumDepAt(c, isoDayBefore(fyStart)), 0);
   const depreciation = ppeAccumDepEnd - ppeAccumDepStart; // FY depreciation charge
   const ppeAdditions = capexCosts.filter((c) => inFy(c.transaction_date)).reduce((s, c) => s + c.amount, 0);
+  // Disposals: net book value written off when an asset leaves the books.
+  const disposalWriteoffFy = capexCosts
+    .filter((c) => c.disposed_at && inFy(c.disposed_at))
+    .reduce((s, c) => s + assetDisposalWriteoff(c), 0);
+  const disposalWriteoffToDate = capexCosts
+    .filter((c) => c.disposed_at && c.disposed_at <= fyEnd)
+    .reduce((s, c) => s + assetDisposalWriteoff(c), 0);
 
   // ── Balance-sheet figures: cumulative "as at" year-end ──
   // Retained earnings excludes capex (asset, not expense) and carries the
-  // accumulated R&D amortisation + PPE depreciation charged to date.
+  // accumulated R&D amortisation + PPE depreciation charged to date, plus the
+  // book value of disposed assets written off (their sale proceeds are captured
+  // as Other Income, so this nets the disposal down to the gain/loss).
   const retainedEarnings =
     opts.invoices.filter((i) => isEarned(i.status) && i.transaction_date <= fyEnd).reduce((s, i) => s + i.amount, 0) +
     opts.income.filter((r) => r.transaction_date <= fyEnd).reduce((s, r) => s + r.amount, 0) -
     opts.costs.filter((c) => c.transaction_date <= fyEnd && !isCapex(c)).reduce((s, c) => s + c.amount, 0) -
-    accumAmort - ppeAccumDepEnd;
+    accumAmort - ppeAccumDepEnd - disposalWriteoffToDate;
 
   const tradeReceivables = opts.invoices
     .filter((i) => isPending(i.status) && i.transaction_date <= fyEnd)
@@ -138,7 +163,7 @@ export function computeAutoFigures(opts: {
   const totalExpenses = fyCosts
     .filter((c) => !isDrawing(c) && !isSadaqah(c) && !isZakat(c) && !isCapex(c))
     .reduce((s, c) => s + c.amount, 0);
-  const profitForYear = revenue + otherIncome - totalExpenses - donations - zakat - amortisation - depreciation;
+  const profitForYear = revenue + otherIncome - totalExpenses - donations - zakat - amortisation - depreciation - disposalWriteoffFy;
 
   return {
     cash,
@@ -147,6 +172,7 @@ export function computeAutoFigures(opts: {
     intangibles_gross: intangiblesGross,
     amortisation,
     depreciation,
+    disposal_writeoff: disposalWriteoffFy,
     ppe,
     ppe_additions: ppeAdditions,
     retained_earnings: retainedEarnings,

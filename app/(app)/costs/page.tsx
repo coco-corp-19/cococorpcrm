@@ -9,7 +9,7 @@ export default async function CostsPage() {
   const [{ data: costs }, { data: categories }, { data: accounts }, { data: customers }, { data: org }] = await Promise.all([
     supabase
       .from("fact_costs")
-      .select("id, transaction_date, cost_details, amount, recouped, cost_category_id, account_id, customer_id, receipt_image_url, apportion_to_customers, cost_type, include_in_pnl, depreciation_months, residual_value, dim_cost_categories(name), dim_accounts(name), dim_customers(name)")
+      .select("id, transaction_date, cost_details, amount, recouped, cost_category_id, account_id, customer_id, receipt_image_url, apportion_to_customers, cost_type, include_in_pnl, depreciation_months, residual_value, disposed_at, dim_cost_categories(name), dim_accounts(name), dim_customers(name)")
       .eq("org_id", orgId)
       .is("deleted_at", null)
       .order("transaction_date", { ascending: false }),
@@ -37,6 +37,7 @@ export default async function CostsPage() {
     include_in_pnl: (c as Record<string, unknown>).include_in_pnl !== false,
     depreciation_months: ((c as Record<string, unknown>).depreciation_months as number | null) ?? null,
     residual_value: Number((c as Record<string, unknown>).residual_value ?? 0),
+    disposed_at: ((c as Record<string, unknown>).disposed_at as string | null) ?? null,
   }));
 
   return (

@@ -19,7 +19,7 @@ import type { SavedAfsRow } from "@/lib/afs/merge";
 import type { AutoFigures } from "@/lib/afs/compute";
 
 type Invoice = { id: number; amount: number; status: string; transaction_date: string; customer_id: number };
-type Cost = { id: number; amount: number; transaction_date: string; cost_category_id: number | null; category_name: string; cost_type: string; include_in_pnl: boolean };
+type Cost = { id: number; amount: number; transaction_date: string; cost_details: string | null; cost_category_id: number | null; category_name: string; cost_type: string; include_in_pnl: boolean; depreciation_months: number | null; residual_value: number; disposed_at: string | null };
 type Income = { id: number; amount: number; transaction_date: string; description: string | null; income_type: string; account_id: number | null };
 type Cashflow = { id: number; balance: number; account_id: number | null; record_date: string; notes: string | null };
 type BankTxn = {

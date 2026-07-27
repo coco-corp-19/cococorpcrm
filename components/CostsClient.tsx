@@ -47,7 +47,7 @@ type Cost = {
   customer_id: number | null; customer_name: string | null;
   receipt_image_url: string | null; apportion_to_customers: boolean;
   cost_type: string; include_in_pnl: boolean;
-  depreciation_months: number | null; residual_value: number;
+  depreciation_months: number | null; residual_value: number; disposed_at: string | null;
 };
 type Category = { id: number; name: string };
 type Account = { id: number; name: string };
@@ -104,6 +104,9 @@ function CostDrillDownModal({ title, ids, costs, cur, onClose, onEdit }: {
                       style={{ background: `${NON_OPERATIONAL_BADGE[c.cost_type]}22`, color: NON_OPERATIONAL_BADGE[c.cost_type] }}>
                       {COST_TYPE_LABELS[c.cost_type]}
                     </span>
+                  )}
+                  {c.cost_type === "capex" && c.disposed_at && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: "rgba(107,114,128,.18)", color: "#6b7280" }}>Sold {c.disposed_at}</span>
                   )}
                   {c.recouped === "Y" && (
                     <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold" style={{ background: "rgba(236,72,153,.15)", color: "var(--accent)" }}>Recouped</span>
@@ -460,7 +463,7 @@ export function CostsClient({ costs: initialCosts, categories, accounts, custome
                         {c.cost_type !== "operational" ? (
                           <span className="px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap"
                             style={{ background: `${NON_OPERATIONAL_BADGE[c.cost_type]}22`, color: NON_OPERATIONAL_BADGE[c.cost_type] }}>
-                            {COST_TYPE_LABELS[c.cost_type]}
+                            {COST_TYPE_LABELS[c.cost_type]}{c.cost_type === "capex" && c.disposed_at ? " · Sold" : ""}
                           </span>
                         ) : <span style={{ color: "var(--muted2)" }}>—</span>}
                       </td>
@@ -630,6 +633,9 @@ export function CostsClient({ costs: initialCosts, categories, accounts, custome
                   apportion_to_customers: apportion,
                   cost_type: editCostType,
                   include_in_pnl: editIncludeInPnl,
+                  depreciation_months: editCostType === "capex" && fd.get("depreciation_years") ? Math.round(Number(fd.get("depreciation_years")) * 12) : null,
+                  residual_value: editCostType === "capex" ? Number(fd.get("residual_value") || 0) : 0,
+                  disposed_at: editCostType === "capex" ? ((fd.get("disposed_at") as string) || null) : null,
                 };
                 setEditCost(null); setEditImageUrl(""); setEditApportion(false); setEditCostType("operational"); setEditIncludeInPnl(true);
                 void update(id, patch, () => updateCost(id, fd), { success: "Cost updated" });
@@ -709,6 +715,14 @@ export function CostsClient({ costs: initialCosts, categories, accounts, custome
                     <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Residual value</label>
                     <input name="residual_value" type="number" min="0" step="0.01" placeholder="0"
                       defaultValue={editCost.residual_value || ""} className={inputStyle} style={inputCss} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider block mb-1" style={{ color: "var(--muted2)" }}>Sold / disposed on</label>
+                    <input name="disposed_at" type="date"
+                      defaultValue={editCost.disposed_at || ""} className={inputStyle} style={inputCss} />
+                    <p className="text-xs mt-1" style={{ color: "var(--muted2)" }}>
+                      Set this when you sell the asset — it leaves PPE and its remaining book value is written off against the sale proceeds. Record the money received under Accounting → Other Income. Leave blank if still owned.
+                    </p>
                   </div>
                   <p className="text-xs sm:col-span-2" style={{ color: "var(--muted2)" }}>
                     Depreciated straight-line over its life, from the transaction date. Leave life blank to hold at cost.
@@ -807,6 +821,7 @@ export function CostsClient({ costs: initialCosts, categories, accounts, custome
                   include_in_pnl: newIncludeInPnl,
                   depreciation_months: newCostType === "capex" && fd.get("depreciation_years") ? Math.round(Number(fd.get("depreciation_years")) * 12) : null,
                   residual_value: newCostType === "capex" ? Number(fd.get("residual_value") || 0) : 0,
+                  disposed_at: null,
                 };
                 setModal(false);
                 setNewAmount(""); setNewDetails(""); setNewCategoryId(""); setNewImageUrl(""); setNewApportion(false); setNewCostType("operational"); setNewIncludeInPnl(true);

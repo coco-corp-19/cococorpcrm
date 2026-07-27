@@ -16,6 +16,7 @@ export type AutoSource =
   | "intangibles_gross"
   | "amortisation"
   | "depreciation"
+  | "disposal_writeoff"
   | "ppe"
   | "ppe_additions"
   | "retained_earnings"

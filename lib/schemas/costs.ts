@@ -28,6 +28,8 @@ export const CostSchema = z.object({
   // transaction date, down to residual_value). Null months = held at cost.
   depreciation_months: z.coerce.number().int().positive().optional().nullable(),
   residual_value: z.coerce.number().min(0).optional().default(0),
+  // Date the asset was sold/disposed (capex only). Null = still held.
+  disposed_at: z.string().optional().nullable(),
 });
 
 export const CashflowSchema = z.object({
