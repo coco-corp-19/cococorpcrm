@@ -51,7 +51,7 @@ type Cost = {
 };
 type Category = { id: number; name: string };
 type Account = { id: number; name: string };
-type Customer = { id: number; name: string };
+type Customer = { id: number; name: string; status?: string };
 type Props = { costs: Cost[]; categories: Category[]; accounts: Account[]; customers: Customer[]; currency: string };
 
 const COST_TYPE_LABELS: Record<string, string> = Object.fromEntries(COST_TYPES.map(t => [t.value, t.label]));
@@ -166,6 +166,8 @@ function mLabel(m: string) { const [y, mo] = m.split("-"); return ["", "Jan", "F
 
 export function CostsClient({ costs: initialCosts, categories, accounts, customers, currency }: Props) {
   const cur = currency === "ZAR" ? "R" : "$";
+  // Overheads are apportioned across Active customers only (Inactive/Churned excluded).
+  const apportionCount = Math.max(customers.filter(c => (c.status ?? "Active") === "Active").length, 1);
   const pnlMode = usePnlMode();
   const includeAll = includesAllCosts(pnlMode);
   const [view, setView] = useState<"table" | "monthly">("table");
@@ -421,7 +423,7 @@ export function CostsClient({ costs: initialCosts, categories, accounts, custome
                     <p className="font-semibold text-sm leading-tight">{c.cost_details || "—"}</p>
                     <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: "var(--muted2)" }}>
                     {c.category_name || "Uncategorized"}
-                    {c.apportion_to_customers && <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold" style={{ background: "rgba(99,102,241,.15)", color: "#818cf8" }}>All · {cur}{fmt(c.amount / Math.max(customers.length, 1))}/ea</span>}
+                    {c.apportion_to_customers && <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold" style={{ background: "rgba(99,102,241,.15)", color: "#818cf8" }}>Active · {cur}{fmt(c.amount / apportionCount)}/ea</span>}
                   </p>
                   </div>
                   <p className="text-xl font-bold font-mono shrink-0" style={{ color: "var(--red-c)" }}>{cur} {fmt(c.amount)}</p>
@@ -470,7 +472,7 @@ export function CostsClient({ costs: initialCosts, categories, accounts, custome
                       <td className="px-3 py-2 max-w-[140px]">
                         {c.apportion_to_customers
                           ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style={{ background: "rgba(99,102,241,.15)", color: "#818cf8" }}>
-                              All · {cur}{fmt(c.amount / Math.max(customers.length, 1))}/ea
+                              Active · {cur}{fmt(c.amount / apportionCount)}/ea
                             </span>
                           : <span className="truncate block" style={{ color: "var(--muted)" }}>{c.customer_name || "—"}</span>}
                       </td>
@@ -734,8 +736,8 @@ export function CostsClient({ costs: initialCosts, categories, accounts, custome
                 <label className="flex items-center gap-2.5 cursor-pointer select-none">
                   <input type="checkbox" name="apportion_to_customers" checked={editApportion} onChange={e => setEditApportion(e.target.checked)} className="w-4 h-4 rounded" style={{ accentColor: "var(--accent)" }} />
                   <div>
-                    <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>Apportion to all customers</p>
-                    <p className="text-xs" style={{ color: "var(--muted2)" }}>Core/overhead cost split equally across all clients</p>
+                    <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>Apportion to active customers</p>
+                    <p className="text-xs" style={{ color: "var(--muted2)" }}>Overhead cost split equally across Active clients (Inactive/Churned excluded)</p>
                   </div>
                 </label>
                 {editApportion && customers.length > 0 && (
@@ -911,8 +913,8 @@ export function CostsClient({ costs: initialCosts, categories, accounts, custome
                 <label className="flex items-center gap-2.5 cursor-pointer select-none">
                   <input type="checkbox" name="apportion_to_customers" checked={newApportion} onChange={e => setNewApportion(e.target.checked)} className="w-4 h-4 rounded" style={{ accentColor: "var(--accent)" }} />
                   <div>
-                    <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>Apportion to all customers</p>
-                    <p className="text-xs" style={{ color: "var(--muted2)" }}>Core/overhead cost split equally across all clients</p>
+                    <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>Apportion to active customers</p>
+                    <p className="text-xs" style={{ color: "var(--muted2)" }}>Overhead cost split equally across Active clients (Inactive/Churned excluded)</p>
                   </div>
                 </label>
                 {newApportion && customers.length > 0 && (

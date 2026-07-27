@@ -29,17 +29,22 @@ export default async function CustomerKpiPage() {
     invByCustomer.get(cid)!.push({ amount: Number(inv.amount), status: inv.status, date: inv.transaction_date || "" });
   }
 
-  const customerCount = Math.max((customers || []).length, 1);
+  // Overheads are only borne by customers you're still serving. Once-off /
+  // ended engagements marked Inactive or Churned are excluded from the split,
+  // so their share redistributes across the remaining Active customers.
+  const activeCustomers = (customers || []).filter(c => ((c as Record<string, unknown>).status as string ?? "Active") === "Active");
+  const activeCount = Math.max(activeCustomers.length, 1);
   const cacByCustomer = new Map<number, number>();
   for (const cost of costs || []) {
     const c = cost as { customer_id: number | null; amount: number; apportion_to_customers: boolean };
     if (c.apportion_to_customers) {
-      // Overhead cost — split equally across all active customers
-      const share = Number(c.amount) / customerCount;
-      for (const customer of customers || []) {
+      // Overhead cost — split equally across Active customers only.
+      const share = Number(c.amount) / activeCount;
+      for (const customer of activeCustomers) {
         cacByCustomer.set(customer.id, (cacByCustomer.get(customer.id) ?? 0) + share);
       }
     } else if (c.customer_id) {
+      // Direct cost — always attributed to that customer regardless of status.
       cacByCustomer.set(c.customer_id, (cacByCustomer.get(c.customer_id) ?? 0) + Number(c.amount));
     }
   }

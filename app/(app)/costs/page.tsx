@@ -15,7 +15,7 @@ export default async function CostsPage() {
       .order("transaction_date", { ascending: false }),
     supabase.from("dim_cost_categories").select("id, name").eq("org_id", orgId).order("name"),
     supabase.from("dim_accounts").select("id, name").eq("org_id", orgId).order("name"),
-    supabase.from("dim_customers").select("id, name").eq("org_id", orgId).is("deleted_at", null).order("name"),
+    supabase.from("dim_customers").select("id, name, status").eq("org_id", orgId).is("deleted_at", null).order("name"),
     supabase.from("organizations").select("currency").eq("id", orgId).single(),
   ]);
 
