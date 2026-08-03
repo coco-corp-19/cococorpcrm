@@ -13,7 +13,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const [{ data: customer }, { data: invoices }, { data: org }, { data: paymentTypes }, { data: products }, { data: quotes }, { data: subscriptions }, { data: invoiceStatuses }] = await Promise.all([
     supabase.from("dim_customers").select("*").eq("id", customerId).single(),
     supabase.from("fact_invoices")
-      .select("id, invoice_number, amount, status, transaction_date, due_date, description, payment_type_id, dim_payment_types(name)")
+      .select("id, invoice_number, amount, vat_amount, amount_net, status, transaction_date, due_date, description, payment_type_id, dim_payment_types(name)")
       .eq("customer_id", customerId).eq("org_id", orgId).is("deleted_at", null)
       .order("transaction_date", { ascending: false }),
     supabase.from("organizations").select("currency").eq("id", orgId).single(),
@@ -121,6 +121,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         invoices={allInvoices.map(i => ({
           ...i,
           amount: Number(i.amount),
+          vat_amount: Number((i as Record<string, unknown>).vat_amount ?? 0),
+          amount_net: Number((i as Record<string, unknown>).amount_net ?? 0),
           description: (i as Record<string, unknown>).description as string | null ?? null,
           payment_type_id: (i as Record<string, unknown>).payment_type_id as number | null ?? null,
           payment_type_name: (i.dim_payment_types as unknown as { name: string } | null)?.name ?? null,

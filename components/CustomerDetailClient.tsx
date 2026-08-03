@@ -15,7 +15,7 @@ import { createContact, updateContact, deleteContact } from "@/server-actions/co
 import { createActivity, toggleActivity, deleteActivity } from "@/server-actions/activities";
 
 type InvLine = { id?: number; description: string; quantity: number; unit_price: number; line_total?: number; product_id?: number | null };
-type Invoice = { id: number; invoice_number: string | null; amount: number; status: string; transaction_date: string | null; due_date: string | null; description?: string | null; payment_type_id?: number | null; payment_type_name?: string | null };
+type Invoice = { id: number; invoice_number: string | null; amount: number; vat_amount: number; amount_net: number; status: string; transaction_date: string | null; due_date: string | null; description?: string | null; payment_type_id?: number | null; payment_type_name?: string | null };
 type Subscription = { id: number; description: string; amount: number; frequency: string; start_date: string; end_date: string | null; status: string; invoice_prefix: string; product_id: number | null; payment_type_id: number | null };
 type Quote = { id: number; quote_number: string; status: string; amount: number; valid_until: string | null; created_at: string };
 type Product = { id: number; name: string; unit_price: number; is_active: boolean };
@@ -412,7 +412,10 @@ export function CustomerDetailClient({ customer, invoices, invoiceLinesMap = {},
                       <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--muted2)" }}>{fdate(inv.transaction_date)}</td>
                       <td className="px-3 py-2 font-semibold whitespace-nowrap" style={{ color: "var(--accent)" }}>{inv.invoice_number || `#${inv.id}`}</td>
                       <td className="px-3 py-2 max-w-[160px] truncate" style={{ color: "var(--muted)" }}>{inv.description || "—"}</td>
-                      <td className="px-3 py-2 font-mono font-semibold whitespace-nowrap">{currency} {fmt(inv.amount)}</td>
+                      <td className="px-3 py-2 font-mono whitespace-nowrap">
+                        <div className="font-semibold">{currency} {fmt(inv.amount)}</div>
+                        <div className="text-[10px]" style={{ color: "var(--muted2)" }}>VAT {fmt(inv.vat_amount)} · net {fmt(inv.amount_net)}</div>
+                      </td>
                       <td className="px-3 py-2 whitespace-nowrap" style={{ color: isOverdue ? "var(--red-c)" : "var(--muted2)" }}>{fdate(inv.due_date)}{isOverdue ? " ⚠" : ""}</td>
                       <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--muted2)" }}>{inv.payment_type_name || "—"}</td>
                       <td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full text-xs font-semibold" style={{ background: col + "22", color: col }}>{inv.status}</span></td>

@@ -9,7 +9,7 @@ export default async function InvoicesPage() {
   const [{ data: invoices }, { data: customers }, { data: payTypes }, { data: products }, { data: org }, { data: invoiceStatuses }] = await Promise.all([
     supabase
       .from("fact_invoices")
-      .select("id, invoice_number, amount, status, transaction_date, due_date, customer_id, description, payment_type_id, dim_payment_types(name)")
+      .select("id, invoice_number, amount, vat_amount, amount_net, status, transaction_date, due_date, customer_id, description, payment_type_id, dim_payment_types(name)")
       .eq("org_id", orgId)
       .is("deleted_at", null)
       .order("transaction_date", { ascending: false }),
@@ -24,6 +24,8 @@ export default async function InvoicesPage() {
     id: inv.id,
     invoice_number: inv.invoice_number ?? null,
     amount: Number(inv.amount || 0),
+    vat_amount: Number((inv as Record<string, unknown>).vat_amount ?? 0),
+    amount_net: Number((inv as Record<string, unknown>).amount_net ?? 0),
     status: inv.status || "Pending",
     transaction_date: inv.transaction_date ?? null,
     due_date: (inv as Record<string, unknown>).due_date as string | null ?? null,

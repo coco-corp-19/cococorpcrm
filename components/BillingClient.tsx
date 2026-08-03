@@ -12,7 +12,7 @@ import { PnlModeToggle } from "@/components/PnlModeToggle";
 
 type Invoice = {
   id: number; customer_id: number; transaction_date: string;
-  invoice_number: string; amount: number; status: string;
+  invoice_number: string; amount: number; vat_amount: number; amount_net: number; status: string;
   payment_type_name: string | null; description: string | null;
 };
 type Customer = { id: number; name: string };
@@ -124,7 +124,10 @@ function DrillDownModal({ title, invoiceIds, invoices, customers, currency, invo
                 </div>
 
                 {/* Amount */}
-                <span className="font-mono font-bold text-sm shrink-0">{cur} {fmt(inv.amount)}</span>
+                <div className="text-right shrink-0">
+                  <span className="font-mono font-bold text-sm block">{cur} {fmt(inv.amount)}</span>
+                  <span className="font-mono text-[10px] block" style={{ color: "var(--muted2)" }}>VAT {cur} {fmt(inv.vat_amount)} · net {cur} {fmt(inv.amount_net)}</span>
+                </div>
 
                 {/* Status selector */}
                 <div className="relative shrink-0">

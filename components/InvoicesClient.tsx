@@ -13,7 +13,7 @@ import { useOptimisticList } from "@/hooks/useOptimisticList";
 import { createInvoice, updateInvoice, deleteInvoice, updateInvoiceStatus, bulkUpdateInvoices, bulkDeleteInvoices } from "@/server-actions/invoices";
 
 type Invoice = {
-  id: number; invoice_number: string | null; amount: number; status: string;
+  id: number; invoice_number: string | null; amount: number; vat_amount: number; amount_net: number; status: string;
   transaction_date: string | null; due_date: string | null;
   customer_id: number; description: string | null; payment_type_name: string | null;
 };
@@ -310,6 +310,7 @@ export function InvoicesClient({ invoices, customers, paymentTypes, products = [
                 <div className="text-right">
                   <p className="text-xs mb-0.5" style={{ color: "var(--muted2)" }}>Amount</p>
                   <p className="text-xl font-bold font-mono">{cur} {fmt(inv.amount)}</p>
+                  <p className="text-[11px] font-mono" style={{ color: "var(--muted2)" }}>VAT {cur} {fmt(inv.vat_amount)} · net {cur} {fmt(inv.amount_net)}</p>
                 </div>
               </div>
               <div className="flex gap-4 text-xs mb-3" style={{ color: "var(--muted2)" }}>
@@ -411,7 +412,10 @@ export function InvoicesClient({ invoices, customers, paymentTypes, products = [
                     </td>
                     <td className="px-3 py-2 max-w-[150px] truncate" style={{ color: "var(--muted)" }}>{inv.description || "—"}</td>
                     <td className="px-3 py-2 whitespace-nowrap" style={{ color: inv.due_date && inv.status === "Pending" && new Date(inv.due_date) < new Date() ? "var(--red-c)" : "var(--muted2)" }}>{fdate(inv.due_date)}</td>
-                    <td className="px-3 py-2 font-mono font-semibold whitespace-nowrap">{cur} {fmt(inv.amount)}</td>
+                    <td className="px-3 py-2 font-mono whitespace-nowrap">
+                      <div className="font-semibold">{cur} {fmt(inv.amount)}</div>
+                      <div className="text-[10px]" style={{ color: "var(--muted2)" }}>VAT {fmt(inv.vat_amount)} · net {fmt(inv.amount_net)}</div>
+                    </td>
                     <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--muted2)" }}>{inv.payment_type_name || "—"}</td>
                     <td className="px-3 py-2">
                       <select value={inv.status} onChange={e => handleStatusChange(inv.id, e.target.value)}

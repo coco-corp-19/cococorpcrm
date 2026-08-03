@@ -9,7 +9,7 @@ export default async function BillingPage() {
   const [{ data: invoices }, { data: customers }, { data: costs }, { data: org }, { data: invoiceStatuses }] = await Promise.all([
     supabase
       .from("fact_invoices")
-      .select("id, customer_id, transaction_date, invoice_number, amount, status, description, payment_type_id, dim_payment_types(name)")
+      .select("id, customer_id, transaction_date, invoice_number, amount, vat_amount, amount_net, status, description, payment_type_id, dim_payment_types(name)")
       .eq("org_id", orgId)
       .is("deleted_at", null)
       .order("transaction_date", { ascending: false }),
@@ -35,6 +35,8 @@ export default async function BillingPage() {
     transaction_date: inv.transaction_date || "",
     invoice_number: inv.invoice_number || "",
     amount: Number(inv.amount || 0),
+    vat_amount: Number((inv as Record<string, unknown>).vat_amount ?? 0),
+    amount_net: Number((inv as Record<string, unknown>).amount_net ?? 0),
     status: inv.status || "Pending",
     description: (inv as Record<string, unknown>).description as string | null ?? null,
     payment_type_name: (inv.dim_payment_types as unknown as { name: string } | null)?.name ?? null,
