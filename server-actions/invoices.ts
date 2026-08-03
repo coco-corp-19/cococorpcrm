@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { InvoiceLineSchema, InvoiceSchema } from "@/lib/schemas/invoices";
+import { InvoiceLineSchema, InvoiceSchema, InvoiceVatFlagsSchema } from "@/lib/schemas/invoices";
 import { getCurrentOrgId } from "@/lib/supabase/org";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -26,6 +26,9 @@ export async function createInvoice(formData: FormData) {
     amount: formData.get("amount"),
     status: formData.get("status"),
     due_date: formData.get("due_date"),
+    supply_type: formData.get("supply_type") || undefined,
+    vat_shown_to_client: formData.get("vat_shown_to_client") === "on" || formData.get("vat_shown_to_client") === "true",
+    is_valid_tax_invoice: formData.get("is_valid_tax_invoice") === "on" || formData.get("is_valid_tax_invoice") === "true",
   });
 
   const lines = linesInput.map((item, index) => {
@@ -92,6 +95,28 @@ export async function updateInvoiceStatus(id: number, status: string) {
   revalidatePath("/customers", "layout");
 }
 
+// Set only the VAT attributes of an invoice (for the bulk-flag UI). vat_amount /
+// amount_net recompute automatically (DB-generated).
+export async function setInvoiceVatFlags(id: number, flags: unknown) {
+  const supabase = await createServerClient();
+  const patch = InvoiceVatFlagsSchema.parse(flags);
+  const { error } = await supabase.from("fact_invoices").update(patch).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/invoices");
+  revalidatePath("/billing");
+}
+
+export async function bulkSetInvoiceVatFlags(ids: number[], flags: unknown) {
+  if (ids.length === 0) return;
+  const supabase = await createServerClient();
+  const patch = InvoiceVatFlagsSchema.parse(flags);
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await supabase.from("fact_invoices").update(patch).in("id", ids);
+  if (error) throw new Error(error.message);
+  revalidatePath("/invoices");
+  revalidatePath("/billing");
+}
+
 export async function bulkDeleteInvoices(ids: number[]) {
   if (ids.length === 0) return;
   const supabase = await createServerClient();
@@ -121,6 +146,9 @@ export async function updateInvoice(id: number, formData: FormData) {
     status: formData.get("status"),
     due_date: formData.get("due_date") || null,
     payment_type_id: formData.get("payment_type_id") ? Number(formData.get("payment_type_id")) : null,
+    supply_type: formData.get("supply_type") || "standard",
+    vat_shown_to_client: formData.get("vat_shown_to_client") === "on" || formData.get("vat_shown_to_client") === "true",
+    is_valid_tax_invoice: formData.get("is_valid_tax_invoice") === "on" || formData.get("is_valid_tax_invoice") === "true",
   }).eq("id", id);
   if (error) throw new Error(error.message);
 

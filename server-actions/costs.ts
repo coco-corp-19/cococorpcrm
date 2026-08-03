@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { CostSchema, CashflowSchema } from "@/lib/schemas/costs";
+import { CostSchema, CashflowSchema, CostVatFlagsSchema } from "@/lib/schemas/costs";
 import { getCurrentOrgId } from "@/lib/supabase/org";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -32,6 +32,9 @@ export async function createCost(formData: FormData) {
     depreciation_months: costType === "capex" && depYears ? Math.round(Number(depYears) * 12) : null,
     residual_value: costType === "capex" ? Number(formData.get("residual_value") || 0) : 0,
     disposed_at: costType === "capex" && disposedAt ? String(disposedAt) : null,
+    supply_type: formData.get("supply_type") || undefined,
+    has_valid_tax_invoice: formData.get("has_valid_tax_invoice") === "on" || formData.get("has_valid_tax_invoice") === "true",
+    input_vat_claimable: formData.get("input_vat_claimable") === "on" || formData.get("input_vat_claimable") === "true",
   });
 
   const { error } = await supabase.from("fact_costs").insert(parsed);
@@ -40,6 +43,28 @@ export async function createCost(formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath("/accounting");
   revalidatePath("/customers/kpi");
+}
+
+// Set only the VAT attributes of a cost (for the bulk-flag UI). input_vat_amount
+// recomputes automatically (DB-generated, gated on both flags).
+export async function setCostVatFlags(id: number, flags: unknown) {
+  const supabase = await createServerClient();
+  const patch = CostVatFlagsSchema.parse(flags);
+  const { error } = await supabase.from("fact_costs").update(patch).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/costs");
+  revalidatePath("/accounting");
+}
+
+export async function bulkSetCostVatFlags(ids: number[], flags: unknown) {
+  if (ids.length === 0) return;
+  const supabase = await createServerClient();
+  const patch = CostVatFlagsSchema.parse(flags);
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await supabase.from("fact_costs").update(patch).in("id", ids);
+  if (error) throw new Error(error.message);
+  revalidatePath("/costs");
+  revalidatePath("/accounting");
 }
 
 export async function updateCost(id: number, formData: FormData) {
@@ -66,6 +91,9 @@ export async function updateCost(id: number, formData: FormData) {
     depreciation_months: costType === "capex" && depYears ? Math.round(Number(depYears) * 12) : null,
     residual_value: costType === "capex" ? Number(formData.get("residual_value") || 0) : 0,
     disposed_at: costType === "capex" && disposedAt ? String(disposedAt) : null,
+    supply_type: formData.get("supply_type") || "standard",
+    has_valid_tax_invoice: formData.get("has_valid_tax_invoice") === "on" || formData.get("has_valid_tax_invoice") === "true",
+    input_vat_claimable: formData.get("input_vat_claimable") === "on" || formData.get("input_vat_claimable") === "true",
     ...(receiptUrl !== null ? { receipt_image_url: receiptUrl || null } : {}),
   }).eq("id", id);
 

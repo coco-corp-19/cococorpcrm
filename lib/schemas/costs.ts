@@ -11,6 +11,15 @@ export const COST_TYPES = [
 
 export type CostTypeValue = (typeof COST_TYPES)[number]["value"];
 
+export const SUPPLY_TYPES = [
+  { value: "standard",     label: "Standard (15%)" },
+  { value: "zero_rated",   label: "Zero-rated" },
+  { value: "exempt",       label: "Exempt" },
+  { value: "out_of_scope", label: "Out of scope" },
+] as const;
+
+const SupplyTypeEnum = z.enum(["standard", "zero_rated", "exempt", "out_of_scope"]);
+
 export const CostSchema = z.object({
   org_id: z.string().uuid(),
   transaction_date: z.string().min(1),
@@ -30,6 +39,17 @@ export const CostSchema = z.object({
   residual_value: z.coerce.number().min(0).optional().default(0),
   // Date the asset was sold/disposed (capex only). Null = still held.
   disposed_at: z.string().optional().nullable(),
+  // VAT (input side). input_vat_amount is DB-generated and gated on BOTH flags below.
+  supply_type: SupplyTypeEnum.default("standard"),
+  has_valid_tax_invoice: z.coerce.boolean().default(false),
+  input_vat_claimable: z.coerce.boolean().default(false),
+});
+
+// Edit / bulk-flag only the VAT attributes of an existing cost.
+export const CostVatFlagsSchema = z.object({
+  supply_type: SupplyTypeEnum.optional(),
+  has_valid_tax_invoice: z.coerce.boolean().optional(),
+  input_vat_claimable: z.coerce.boolean().optional(),
 });
 
 export const CashflowSchema = z.object({
